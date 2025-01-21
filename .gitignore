@@ -1,0 +1,42 @@
+# Byte-compiled Python files
+*.pyc
+*.pyo
+__pycache__/
+
+# Environment variables and secrets
+.env
+*.env
+
+# Flask and Python virtual environment
+venv/
+.venv/
+
+# SQLite database files
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Pytest and testing cache
+.pytest_cache/
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+
+# IDE-specific files
+.vscode/
+.idea/
+*.iml
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Compiled C extensions
+*.so
+
+# Flask-Specific
+instance/
