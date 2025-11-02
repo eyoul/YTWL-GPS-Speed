@@ -1,72 +1,49 @@
-from flask import Flask, request
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, render_template, jsonify
+import threading
+from listener import start_server
+import sqlite3
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
-db = SQLAlchemy(app)
+DB = 'gps.db'
 
-@app.cli.command("init-db")
-def init_db():
-    db.create_all()
-    print("Database Initialized")
-
-class Cafe(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), unique=True, nullable=False)
-    price = db.Column(db.Numeric(10, 2), nullable=False)
-    description = db.Column(db.String(120))
-
-    def __repr__(self):
-        return f"{self.name} - {self.price} - {self.description}"
+def save_gps(imei, timestamp, lat, lon, speed):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO gps_data (imei, timestamp, latitude, longitude, speed)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (imei, timestamp, lat, lon, speed))
+    conn.commit()
+    conn.close()
+    
+def get_latest(limit=100):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute('''
+        SELECT imei, timestamp, latitude, longitude, speed 
+        FROM gps_data 
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
+        ORDER BY id DESC 
+        LIMIT ?
+    ''', (limit,))
+    rows = c.fetchall()
+    conn.close()
+    return [{'imei': r[0], 'timestamp': r[1], 'lat': r[2], 'lon': r[3], 'speed': r[4]} for r in rows]
 
 @app.route('/')
 def index():
-    return 'Hello!'
+    return render_template('map.html')
 
-@app.route('/cafe')
-def get_cafe():
-    cafe = Cafe.query.all()
-    output = []
-    for item in cafe:
-        cafe_item = {'name': item.name, 'price': item.price, 'description': item.description}
+# API endpoint for latest GPS points
+@app.route('/api/latest')
+@app.route('/api/points')
+def api_points():
+    return jsonify(get_latest(200))
 
-        output.append(cafe_item)
+if __name__ == '__main__':
+    # Start TCP listener in a background thread
+    t = threading.Thread(target=start_server, daemon=True)
+    t.start()
 
-    return {"cafe": output}
-
-@app.route('/cafe/<id>')
-def get_item(id):
-    item = Cafe.query.get_or_404(id)
-    return {"name": item.name, "price": item.price, "description": item.description}
-    
-@app.route('/cafe', methods=['POST'])
-def add_item():
-    item = Cafe(name=request.json['name'], price=request.json['price'], description=request.json['description'])
-    db.session.add(item)
-    db.session.commit()
-    return {'id': item.id}
-
-@app.route('/cafe/<id>', methods=['DELETE'])
-def delete_item(id):
-    item = Cafe.query.get(id)
-    if item is None:
-        return {"error": "The Item Not found"}
-    db.session.delete(item)
-    db.session.commit()
-    return {"Message": "The Item id Deleted successfully"}
-
-@app.route('/cafe/<id>', methods=['PUT'])
-def update_item(id):
-    item = Cafe.query.get(id)
-    if item is None:
-        return {"error": "The item Not Found!"}, 404
-    
-    item.name = request.json['name']
-    item.price = request.json['price']
-    item.description = request.json['description']
-
-    db.session.commit()
-    return {"Message": "The item has been updated successfully"}
-
-if __name__ == "__main__":
-    app.run(debug=True)
+    # Start Flask app
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
