@@ -185,3 +185,4 @@ fleet.db
 .db
 .env
 example.env
+*.db
