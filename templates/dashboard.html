@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GPS Fleet Management Dashboard</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        
+        .container {
+            display: flex;
+            height: calc(100vh - 70px);
+        }
+        
+        .sidebar {
+            width: 300px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar-section {
+            padding: 1.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .sidebar-section h3 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .sidebar-section h3 i {
+            color: #667eea;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.3rem;
+            color: #555;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            width: 100%;
+            margin-bottom: 0.5rem;
+            transition: background 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .reports {
+            width: calc(100% - 300px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .reports-header {
+            background: white;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .reports-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+        
+        .report-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .report-card h4 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 0.3rem;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 0.8rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .toggle-btn {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1000;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .bg-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .bg-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .bg-info {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 70px;
+                height: calc(100vh - 70px);
+                z-index: 999;
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            
+            .reports {
+                width: 100%;
+            }
+            
+            .toggle-btn {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-map-marked-alt"></i> GPS Fleet Management Dashboard</h1>
+    </div>
+    
+    <button class="toggle-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <div class="container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-section">
+                <h3><i class="fas fa-cog"></i> Report Settings</h3>
+                <div class="form-group">
+                    <label for="imei">Vehicle IMEI:</label>
+                    <input type="text" id="imei" placeholder="Enter IMEI number">
+                </div>
+                <div class="form-group">
+                    <label for="startDate">Start Date:</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="form-group">
+                    <label for="endDate">End Date:</label>
+                    <input type="date" id="endDate">
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3><i class="fas fa-chart-line"></i> Travel Reports</h3>
+                <button class="btn" onclick="loadParkReport()">
+                    <i class="fas fa-parking"></i> Park Report
+                </button>
+                <button class="btn" onclick="loadMileageReport()">
+                    <i class="fas fa-road"></i> Daily Mileage
+                </button>
+                <button class="btn" onclick="loadFuelReport()">
+                    <i class="fas fa-gas-pump"></i> Fuel Report
+                </button>
+                <button class="btn" onclick="loadTemperatureReport()">
+                    <i class="fas fa-thermometer-half"></i> Temperature
+                </button>
+                <button class="btn" onclick="loadTripsReport()">
+                    <i class="fas fa-route"></i> Trip Reports
+                </button>
+                <button class="btn btn-secondary" onclick="loadAllReports()">
+                    <i class="fas fa-chart-bar"></i> Load All Reports
+                </button>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3><i class="fas fa-map"></i> Navigation</h3>
+                <button class="btn" onclick="showLiveMap()">
+                    <i class="fas fa-satellite-dish"></i> Live Map
+                </button>
+                <button class="btn btn-secondary" onclick="window.open('/map', '_blank')">
+                    <i class="fas fa-external-link-alt"></i> Open Map in New Tab
+                </button>
+            </div>
+        </div>
+        
+        <div class="reports">
+            <div class="reports-header">
+                <h2 id="reportTitle">Dashboard Overview</h2>
+                <div id="reportStatus"></div>
+            </div>
+            
+            <div class="reports-content" id="reportsContent">
+                <div class="report-card">
+                    <h4><i class="fas fa-tachometer-alt"></i> Fleet Overview</h4>
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalVehicles">-</div>
+                            <div class="stat-label">Active Vehicles</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalDistance">-</div>
+                            <div class="stat-label">Total Miles Today</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="avgSpeed">-</div>
+                            <div class="stat-label">Average Speed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="activeTime">-</div>
+                            <div class="stat-label">Active Hours</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-card">
+                    <h4><i class="fas fa-info-circle"></i> Quick Start</h4>
+                    <p>Welcome to your GPS Fleet Management Dashboard! Select a vehicle IMEI and choose your desired date range, then click on any report button to view detailed analytics.</p>
+                    <ul style="margin-top: 1rem; padding-left: 1.5rem; color: #666;">
+                        <li><strong>Park Report:</strong> View vehicle stoppages and idling instances</li>
+                        <li><strong>Daily Mileage:</strong> Track miles driven per day</li>
+                        <li><strong>Fuel Report:</strong> Monitor fuel consumption</li>
+                        <li><strong>Temperature:</strong> Check temperature-sensitive product monitoring</li>
+                        <li><strong>Trip Reports:</strong> Analyze routes, distances, and speeds</li>
+                        <li><strong>Live Map:</strong> View real-time vehicle locations</li>
+                    </ul>
+                    <div style="margin-top: 1rem;">
+                        <strong>Quick Links:</strong> 
+                        <a href="/map" target="_blank" style="color: #667eea; text-decoration: none; margin-left: 0.5rem;">
+                            <i class="fas fa-map"></i> Open Map View
+                        </a>
+                    </div>
+                </div>
+                
+                <div id="liveMapContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-map-marked-alt"></i> Live Vehicle Tracking</h4>
+                        <div id="map" style="height: 500px; border-radius: 8px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        let map = null;
+        let markers = {};
+        
+        // Initialize date inputs with today's date
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('startDate').value = today;
+            document.getElementById('endDate').value = today;
+            
+            // Load initial overview data
+            loadOverviewData();
+        });
+        
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+        
+        function getReportParams() {
+            const imei = document.getElementById('imei').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!imei) {
+                showError('Please enter a vehicle IMEI number');
+                return null;
+            }
+            
+            const params = new URLSearchParams({ imei });
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            
+            return params;
+        }
+        
+        async function loadOverviewData() {
+            try {
+                const response = await fetch('/api/latest');
+                const data = await response.json();
+                
+                // Calculate overview statistics
+                const uniqueImeis = [...new Set(data.map(p => p.imei))];
+                const totalDistance = data.reduce((sum, p) => sum + (p.speed || 0), 0);
+                const avgSpeed = data.length > 0 ? (data.reduce((sum, p) => sum + (p.speed || 0), 0) / data.length).toFixed(1) : 0;
+                
+                document.getElementById('totalVehicles').textContent = uniqueImeis.length;
+                document.getElementById('totalDistance').textContent = Math.round(totalDistance * 0.1);
+                document.getElementById('avgSpeed').textContent = avgSpeed;
+                document.getElementById('activeTime').textContent = Math.round(data.length * 0.05);
+                
+                // Auto-populate IMEI if there's data
+                if (uniqueImeis.length > 0 && !document.getElementById('imei').value) {
+                    document.getElementById('imei').value = uniqueImeis[0];
+                }
+            } catch (error) {
+                console.error('Error loading overview data:', error);
+            }
+        }
+        
+        async function loadParkReport() {
+            const params = getReportParams();
+            if (!params) return;
+            
+            showLoading('Loading Park Report...');
+            updateTitle('Park Report - Vehicle Stoppages & Idling');
+            
+            try {
+                const response = await fetch(`/api/reports/parking?${params}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayParkReport(data);
+                } else {
+                    showError(data.error || 'Failed to load park report');
+                }
+            } catch (error) {
+                showError('Error loading park report: ' + error.message);
+            }
+        }
+        
+        function displayParkReport(data) {
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-parking"></i> Park Report Summary</h4>
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${data.total_events}</div>
+                            <div class="stat-label">Total Events</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.parking_events.filter(e => e.event_type === 'parked').length}</div>
+                            <div class="stat-label">Parked Events</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.parking_events.filter(e => e.event_type === 'idling').length}</div>
+                            <div class="stat-label">Idling Events</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${Math.round(data.parking_events.reduce((sum, e) => sum + e.duration_minutes, 0) / 60)}h</div>
+                            <div class="stat-label">Total Duration</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-card">
+                    <h4><i class="fas fa-list"></i> Detailed Events</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Duration</th>
+                                <th>Type</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.parking_events.map(event => `
+                                <tr>
+                                    <td>${new Date(event.start_time).toLocaleString()}</td>
+                                    <td>${new Date(event.end_time).toLocaleString()}</td>
+                                    <td>${event.duration_minutes} min</td>
+                                    <td><span class="badge ${event.event_type === 'parked' ? 'bg-success' : 'bg-warning'}">${event.event_type}</span></td>
+                                    <td>${event.latitude.toFixed(4)}, ${event.longitude.toFixed(4)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        async function loadMileageReport() {
+            const params = getReportParams();
+            if (!params) return;
+            
+            showLoading('Loading Daily Mileage Report...');
+            updateTitle('Daily Mileage Report');
+            
+            try {
+                const response = await fetch(`/api/reports/mileage?${params}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayMileageReport(data);
+                } else {
+                    showError(data.error || 'Failed to load mileage report');
+                }
+            } catch (error) {
+                showError('Error loading mileage report: ' + error.message);
+            }
+        }
+        
+        function displayMileageReport(data) {
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-road"></i> Mileage Summary</h4>
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${data.total_miles}</div>
+                            <div class="stat-label">Total Miles</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.daily_mileage.length}</div>
+                            <div class="stat-label">Active Days</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.daily_mileage.length > 0 ? (data.total_miles / data.daily_mileage.length).toFixed(1) : 0}</div>
+                            <div class="stat-label">Daily Average</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.daily_mileage.length > 0 ? Math.max(...data.daily_mileage.map(d => d.miles)).toFixed(1) : 0}</div>
+                            <div class="stat-label">Max Daily Miles</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-card">
+                    <h4><i class="fas fa-calendar-alt"></i> Daily Breakdown</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Miles Driven</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.daily_mileage.map(day => `
+                                <tr>
+                                    <td>${day.date}</td>
+                                    <td>${day.miles}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        async function loadFuelReport() {
+            const params = getReportParams();
+            if (!params) return;
+            
+            showLoading('Loading Fuel Report...');
+            updateTitle('Fuel Consumption Report');
+            
+            try {
+                const response = await fetch(`/api/reports/fuel?${params}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayFuelReport(data);
+                } else {
+                    showError(data.error || 'Failed to load fuel report');
+                }
+            } catch (error) {
+                showError('Error loading fuel report: ' + error.message);
+            }
+        }
+        
+        function displayFuelReport(data) {
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-gas-pump"></i> Fuel Summary</h4>
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${data.total_filled}</div>
+                            <div class="stat-label">Total Filled</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.total_drained}</div>
+                            <div class="stat-label">Total Drained</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.net_consumption}</div>
+                            <div class="stat-label">Net Consumption</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.fuel_data.length}</div>
+                            <div class="stat-label">Data Points</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-card">
+                    <h4><i class="fas fa-chart-line"></i> Fuel History</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Fuel Level</th>
+                                <th>Filled</th>
+                                <th>Drained</th>
+                                <th>Event Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.fuel_data.map(item => `
+                                <tr>
+                                    <td>${new Date(item.timestamp).toLocaleString()}</td>
+                                    <td>${item.fuel_level || '-'}</td>
+                                    <td>${item.fuel_filled || 0}</td>
+                                    <td>${item.fuel_drained || 0}</td>
+                                    <td><span class="badge bg-info">${item.event_type}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        async function loadTemperatureReport() {
+            const params = getReportParams();
+            if (!params) return;
+            
+            showLoading('Loading Temperature Report...');
+            updateTitle('Temperature Monitoring Report');
+            
+            try {
+                const response = await fetch(`/api/reports/temperature?${params}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayTemperatureReport(data);
+                } else {
+                    showError(data.error || 'Failed to load temperature report');
+                }
+            } catch (error) {
+                showError('Error loading temperature report: ' + error.message);
+            }
+        }
+        
+        function displayTemperatureReport(data) {
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-thermometer-half"></i> Temperature Summary</h4>
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${data.average_temperature || '-'}</div>
+                            <div class="stat-label">Average Temp (°C)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.min_temperature || '-'}</div>
+                            <div class="stat-label">Min Temp (°C)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.max_temperature || '-'}</div>
+                            <div class="stat-label">Max Temp (°C)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.readings_count}</div>
+                            <div class="stat-label">Total Readings</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-card">
+                    <h4><i class="fas fa-temperature-high"></i> Temperature History</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Temperature (°C)</th>
+                                <th>Sensor ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.temperature_data.map(item => `
+                                <tr>
+                                    <td>${new Date(item.timestamp).toLocaleString()}</td>
+                                    <td>${item.temperature_celsius || '-'}</td>
+                                    <td>${item.sensor_id || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        async function loadTripsReport() {
+            const params = getReportParams();
+            if (!params) return;
+            
+            showLoading('Loading Trip Reports...');
+            updateTitle('Trip Reports - Routes & Speed Analysis');
+            
+            try {
+                const response = await fetch(`/api/reports/trips?${params}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayTripsReport(data);
+                } else {
+                    showError(data.error || 'Failed to load trips report');
+                }
+            } catch (error) {
+                showError('Error loading trips report: ' + error.message);
+            }
+        }
+        
+        function displayTripsReport(data) {
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-route"></i> Trip Summary</h4>
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${data.total_trips}</div>
+                            <div class="stat-label">Total Trips</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.total_distance_miles}</div>
+                            <div class="stat-label">Total Distance (miles)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${Math.round(data.total_duration_minutes / 60)}h</div>
+                            <div class="stat-label">Total Duration</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.total_trips > 0 ? (data.total_distance_miles / data.total_trips).toFixed(1) : 0}</div>
+                            <div class="stat-label">Avg Trip Distance</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-card">
+                    <h4><i class="fas fa-list"></i> Detailed Trips</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Start Time</th>
+                                <th>Duration</th>
+                                <th>Distance</th>
+                                <th>Avg Speed</th>
+                                <th>Max Speed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.trips.map(trip => `
+                                <tr>
+                                    <td>${new Date(trip.start_time).toLocaleString()}</td>
+                                    <td>${trip.duration_minutes} min</td>
+                                    <td>${trip.distance_miles} miles</td>
+                                    <td>${trip.avg_speed} km/h</td>
+                                    <td>${trip.max_speed} km/h</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        async function loadAllReports() {
+            const params = getReportParams();
+            if (!params) return;
+            
+            showLoading('Loading All Reports...');
+            updateTitle('Complete Fleet Reports');
+            
+            try {
+                const [parking, mileage, fuel, temperature, trips] = await Promise.all([
+                    fetch(`/api/reports/parking?${params}`).then(r => r.json()),
+                    fetch(`/api/reports/mileage?${params}`).then(r => r.json()),
+                    fetch(`/api/reports/fuel?${params}`).then(r => r.json()),
+                    fetch(`/api/reports/temperature?${params}`).then(r => r.json()),
+                    fetch(`/api/reports/trips?${params}`).then(r => r.json())
+                ]);
+                
+                displayAllReports({ parking, mileage, fuel, temperature, trips });
+            } catch (error) {
+                showError('Error loading reports: ' + error.message);
+            }
+        }
+        
+        function displayAllReports(data) {
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-chart-bar"></i> Complete Fleet Overview</h4>
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${data.parking.total_events}</div>
+                            <div class="stat-label">Parking Events</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.mileage.total_miles}</div>
+                            <div class="stat-label">Total Miles</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.fuel.net_consumption}</div>
+                            <div class="stat-label">Fuel Consumed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.trips.total_trips}</div>
+                            <div class="stat-label">Total Trips</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.temperature.average_temperature || '-'}</div>
+                            <div class="stat-label">Avg Temp (°C)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${Math.round(data.trips.total_duration_minutes / 60)}h</div>
+                            <div class="stat-label">Total Duration</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="success">
+                    <i class="fas fa-check-circle"></i> All reports loaded successfully! Scroll down to see detailed information for each report type.
+                </div>
+                
+                ${getParkReportHTML(data.parking)}
+                ${getMileageReportHTML(data.mileage)}
+                ${getFuelReportHTML(data.fuel)}
+                ${getTemperatureReportHTML(data.temperature)}
+                ${getTripsReportHTML(data.trips)}
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function getParkReportHTML(data) {
+            return `
+                <div class="report-card">
+                    <h4><i class="fas fa-parking"></i> Park Report Details</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Duration</th>
+                                <th>Type</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.parking_events.map(event => `
+                                <tr>
+                                    <td>${new Date(event.start_time).toLocaleString()}</td>
+                                    <td>${new Date(event.end_time).toLocaleString()}</td>
+                                    <td>${event.duration_minutes} min</td>
+                                    <td><span class="badge ${event.event_type === 'parked' ? 'bg-success' : 'bg-warning'}">${event.event_type}</span></td>
+                                    <td>${event.latitude.toFixed(4)}, ${event.longitude.toFixed(4)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function getMileageReportHTML(data) {
+            return `
+                <div class="report-card">
+                    <h4><i class="fas fa-road"></i> Daily Mileage Details</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Miles Driven</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.daily_mileage.map(day => `
+                                <tr>
+                                    <td>${day.date}</td>
+                                    <td>${day.miles}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function getFuelReportHTML(data) {
+            return `
+                <div class="report-card">
+                    <h4><i class="fas fa-gas-pump"></i> Fuel History Details</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Fuel Level</th>
+                                <th>Filled</th>
+                                <th>Drained</th>
+                                <th>Event Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.fuel_data.map(item => `
+                                <tr>
+                                    <td>${new Date(item.timestamp).toLocaleString()}</td>
+                                    <td>${item.fuel_level || '-'}</td>
+                                    <td>${item.fuel_filled || 0}</td>
+                                    <td>${item.fuel_drained || 0}</td>
+                                    <td><span class="badge bg-info">${item.event_type}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function getTemperatureReportHTML(data) {
+            return `
+                <div class="report-card">
+                    <h4><i class="fas fa-thermometer-half"></i> Temperature History Details</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Temperature (°C)</th>
+                                <th>Sensor ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.temperature_data.map(item => `
+                                <tr>
+                                    <td>${new Date(item.timestamp).toLocaleString()}</td>
+                                    <td>${item.temperature_celsius || '-'}</td>
+                                    <td>${item.sensor_id || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function getTripsReportHTML(data) {
+            return `
+                <div class="report-card">
+                    <h4><i class="fas fa-route"></i> Trip History Details</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Start Time</th>
+                                <th>Duration</th>
+                                <th>Distance</th>
+                                <th>Avg Speed</th>
+                                <th>Max Speed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.trips.map(trip => `
+                                <tr>
+                                    <td>${new Date(trip.start_time).toLocaleString()}</td>
+                                    <td>${trip.duration_minutes} min</td>
+                                    <td>${trip.distance_miles} miles</td>
+                                    <td>${trip.avg_speed} km/h</td>
+                                    <td>${trip.max_speed} km/h</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function showLiveMap() {
+            updateTitle('Live Vehicle Tracking');
+            const content = `
+                <div class="report-card">
+                    <h4><i class="fas fa-map-marked-alt"></i> Live Vehicle Tracking</h4>
+                    <div id="map" style="height: 500px; border-radius: 8px;"></div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = content;
+            
+            // Initialize map
+            setTimeout(() => {
+                initializeMap();
+                updateMarkers();
+                setInterval(updateMarkers, 5000);
+            }, 100);
+        }
+        
+        function initializeMap() {
+            if (map) return;
+            
+            const mapElement = document.getElementById('map');
+            if (!mapElement) return;
+            
+            map = L.map(mapElement).setView([9.03, 38.74], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19
+            }).addTo(map);
+        }
+        
+        async function updateMarkers() {
+            if (!map) return;
+            
+            try {
+                const response = await fetch('/api/latest');
+                const data = await response.json();
+                
+                if (data.length > 0) {
+                    const first = data[0];
+                    map.setView([first.lat, first.lon], 13);
+                }
+                
+                data.forEach(p => {
+                    const key = p.imei;
+                    if (markers[key]) {
+                        markers[key].setLatLng([p.lat, p.lon]);
+                    } else {
+                        markers[key] = L.marker([p.lat, p.lon]).addTo(map)
+                            .bindPopup(`IMEI: ${p.imei}<br>Speed: ${p.speed} km/h`);
+                    }
+                });
+            } catch (error) {
+                console.error('Error updating markers:', error);
+            }
+        }
+        
+        function showLoading(message) {
+            document.getElementById('reportStatus').innerHTML = `<div class="loading"><i class="fas fa-spinner fa-spin"></i> ${message}</div>`;
+        }
+        
+        function showError(message) {
+            document.getElementById('reportStatus').innerHTML = `<div class="error"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
+        }
+        
+        function updateTitle(title) {
+            document.getElementById('reportTitle').textContent = title;
+        }
+    </script>
+</body>
+</html>

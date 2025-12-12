@@ -13,6 +13,8 @@ PORT = 9000  # Make sure this matches your cloudflared tunnel
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
+    
+    # GPS data table
     c.execute('''
         CREATE TABLE IF NOT EXISTS gps_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,6 +25,63 @@ def init_db():
             speed REAL
         )
     ''')
+    
+    # Trips table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS trips (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT,
+            start_time TEXT,
+            end_time TEXT,
+            start_lat REAL,
+            start_lon REAL,
+            end_lat REAL,
+            end_lon REAL,
+            distance_km REAL,
+            avg_speed REAL,
+            max_speed REAL,
+            duration_minutes INTEGER
+        )
+    ''')
+    
+    # Parking/idling events table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS parking_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT,
+            start_time TEXT,
+            end_time TEXT,
+            latitude REAL,
+            longitude REAL,
+            duration_minutes INTEGER,
+            event_type TEXT CHECK(event_type IN ('parked', 'idling'))
+        )
+    ''')
+    
+    # Fuel consumption table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS fuel_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT,
+            timestamp TEXT,
+            fuel_level REAL,
+            fuel_filled REAL DEFAULT 0,
+            fuel_drained REAL DEFAULT 0,
+            event_type TEXT CHECK(event_type IN ('level', 'fill', 'drain'))
+        )
+    ''')
+    
+    # Temperature monitoring table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS temperature_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT,
+            timestamp TEXT,
+            temperature_celsius REAL,
+            sensor_id TEXT
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
