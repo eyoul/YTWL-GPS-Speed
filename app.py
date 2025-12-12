@@ -22,15 +22,16 @@ def get_latest(limit=100):
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     c.execute('''
-        SELECT imei, timestamp, latitude, longitude, speed 
-        FROM gps_data 
-        WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
-        ORDER BY id DESC 
+        SELECT v.imei, v.license_plate, g.timestamp, g.latitude, g.longitude, g.speed 
+        FROM gps_data g
+        JOIN vehicles v ON g.vehicle_id = v.id
+        WHERE g.latitude IS NOT NULL AND g.longitude IS NOT NULL 
+        ORDER BY g.id DESC 
         LIMIT ?
     ''', (limit,))
     rows = c.fetchall()
     conn.close()
-    return [{'imei': r[0], 'timestamp': r[1], 'lat': r[2], 'lon': r[3], 'speed': r[4]} for r in rows]
+    return [{'imei': r[0], 'license_plate': r[1], 'timestamp': r[2], 'lat': r[3], 'lon': r[4], 'speed': r[5]} for r in rows]
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     R = 6371  # Earth's radius in kilometers
@@ -42,13 +43,19 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return R * c
 
 def detect_parking_events(imei, start_date=None, end_date=None):
+    # Get vehicle_id for normalization
+    vehicle_id = get_vehicle_id_from_imei(imei)
+    if not vehicle_id:
+        return []
+    
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     
     query = '''
-        SELECT timestamp, latitude, longitude, speed 
-        FROM gps_data 
-        WHERE imei = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
+        SELECT g.timestamp, g.latitude, g.longitude, g.speed 
+        FROM gps_data g
+        JOIN vehicles v ON g.vehicle_id = v.id
+        WHERE v.imei = ? AND g.latitude IS NOT NULL AND g.longitude IS NOT NULL
     '''
     params = [imei]
     
@@ -99,6 +106,7 @@ def detect_parking_events(imei, start_date=None, end_date=None):
             
             if duration_minutes >= 5:  # Only record events longer than 5 minutes
                 parking_events.append({
+                    'vehicle_id': vehicle_id,
                     'imei': imei,
                     'start_time': start_time,
                     'end_time': end_time,
@@ -115,13 +123,19 @@ def detect_parking_events(imei, start_date=None, end_date=None):
     return parking_events
 
 def get_daily_mileage(imei, start_date=None, end_date=None):
+    # Get vehicle_id for normalization
+    vehicle_id = get_vehicle_id_from_imei(imei)
+    if not vehicle_id:
+        return []
+    
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     
     query = '''
-        SELECT DATE(timestamp) as date, latitude, longitude, speed
-        FROM gps_data 
-        WHERE imei = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
+        SELECT DATE(g.timestamp) as date, g.latitude, g.longitude, g.speed
+        FROM gps_data g
+        JOIN vehicles v ON g.vehicle_id = v.id
+        WHERE v.imei = ? AND g.latitude IS NOT NULL AND g.longitude IS NOT NULL
     '''
     params = [imei]
     
@@ -157,16 +171,22 @@ def get_daily_mileage(imei, start_date=None, end_date=None):
         current_date = date
         last_pos = (lat, lon)
     
-    return [{'date': date, 'miles': round(km * 0.621371, 2)} for date, km in daily_mileage.items()]
+    return [{'vehicle_id': vehicle_id, 'imei': imei, 'date': date, 'miles': round(km * 0.621371, 2)} for date, km in daily_mileage.items()]
 
 def get_trip_summary(imei, start_date=None, end_date=None):
+    # Get vehicle_id for normalization
+    vehicle_id = get_vehicle_id_from_imei(imei)
+    if not vehicle_id:
+        return []
+    
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     
     query = '''
-        SELECT timestamp, latitude, longitude, speed
-        FROM gps_data 
-        WHERE imei = ? AND latitude IS NOT NULL AND longitude IS NOT NULL
+        SELECT g.timestamp, g.latitude, g.longitude, g.speed
+        FROM gps_data g
+        JOIN vehicles v ON g.vehicle_id = v.id
+        WHERE v.imei = ? AND g.latitude IS NOT NULL AND g.longitude IS NOT NULL
     '''
     params = [imei]
     
@@ -232,6 +252,7 @@ def get_trip_summary(imei, start_date=None, end_date=None):
             
             if duration_minutes >= 5:  # Only record trips longer than 5 minutes
                 trips.append({
+                    'vehicle_id': vehicle_id,
                     'imei': imei,
                     'start_time': start_time,
                     'end_time': end_time,
@@ -300,7 +321,7 @@ def get_engine_status(vehicle_id):
     c = conn.cursor()
     
     c.execute('''
-        SELECT status, response, executed_at FROM engine_control 
+        SELECT command, status, response, executed_at FROM engine_control 
         WHERE vehicle_id = ? 
         ORDER BY timestamp DESC LIMIT 1
     ''', (vehicle_id,))
@@ -309,14 +330,28 @@ def get_engine_status(vehicle_id):
     conn.close()
     
     if result:
-        status, response, executed_at = result
+        command, status, response, executed_at = result
+        
+        # Determine actual engine state based on last command
+        if command == 'cut' and status == 'executed':
+            engine_state = 'Cut'
+        elif command == 'start' and status == 'executed':
+            engine_state = 'Active'
+        elif status == 'pending':
+            engine_state = f'Processing {command}'
+        elif status == 'failed':
+            engine_state = f'Failed ({command})'
+        else:
+            engine_state = 'Unknown'
+            
         return {
-            'status': status,
+            'status': engine_state,
+            'command': command,
             'response': response,
             'executed_at': executed_at
         }
     
-    return {'status': 'unknown', 'response': None, 'executed_at': None}
+    return {'status': 'Unknown', 'command': None, 'response': None, 'executed_at': None}
 
 def set_speed_limit(vehicle_id, speed_limit_kmh, set_by):
     """Set speed limit for a vehicle"""
@@ -634,6 +669,17 @@ def get_vehicle_by_id(vehicle_id):
         }
     return None
 
+def get_vehicle_id_from_imei(imei):
+    """Get vehicle_id from IMEI, return None if not found"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('SELECT id FROM vehicles WHERE imei = ?', (imei,))
+    result = c.fetchone()
+    conn.close()
+    
+    return result[0] if result else None
+
 def get_vehicle_by_imei(imei):
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -845,15 +891,20 @@ def fuel_report():
     if not imei:
         return jsonify({'error': 'IMEI parameter is required'}), 400
     
+    # Get vehicle_id from IMEI for normalization
+    vehicle_id = get_vehicle_id_from_imei(imei)
+    if not vehicle_id:
+        return jsonify({'error': 'Vehicle not found for IMEI'}), 404
+    
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     
     query = '''
         SELECT timestamp, fuel_level, fuel_filled, fuel_drained, event_type
         FROM fuel_data 
-        WHERE imei = ?
+        WHERE vehicle_id = ?
     '''
-    params = [imei]
+    params = [vehicle_id]
     
     if start_date:
         query += ' AND timestamp >= ?'
@@ -904,15 +955,20 @@ def temperature_report():
     if not imei:
         return jsonify({'error': 'IMEI parameter is required'}), 400
     
+    # Get vehicle_id from IMEI for normalization
+    vehicle_id = get_vehicle_id_from_imei(imei)
+    if not vehicle_id:
+        return jsonify({'error': 'Vehicle not found for IMEI'}), 404
+    
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     
     query = '''
         SELECT timestamp, temperature_celsius, sensor_id
         FROM temperature_data 
-        WHERE imei = ?
+        WHERE vehicle_id = ?
     '''
-    params = [imei]
+    params = [vehicle_id]
     
     if start_date:
         query += ' AND timestamp >= ?'
@@ -965,7 +1021,12 @@ def cut_engine():
     if not imei:
         return jsonify({'error': 'IMEI parameter is required'}), 400
     
-    command_id = send_engine_command(imei, 'cut', user)
+    # Get vehicle_id from IMEI for normalization
+    vehicle_id = get_vehicle_id_from_imei(imei)
+    if not vehicle_id:
+        return jsonify({'error': 'Vehicle not found for IMEI'}), 404
+    
+    command_id = send_engine_command(vehicle_id, 'cut')
     
     return jsonify({
         'success': True,

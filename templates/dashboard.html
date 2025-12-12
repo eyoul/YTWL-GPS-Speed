@@ -201,6 +201,22 @@
             color: #667eea;
         }
         
+        .status-danger {
+            color: #dc3545 !important;
+        }
+        
+        .status-success {
+            color: #28a745 !important;
+        }
+        
+        .status-warning {
+            color: #ffc107 !important;
+        }
+        
+        .status-secondary {
+            color: #6c757d !important;
+        }
+        
         .stat-label {
             color: #666;
             font-size: 0.9rem;
@@ -1297,6 +1313,39 @@
             document.getElementById('reportsContent').innerHTML = html;
         }
         
+        async function cutEngine() {
+            const vehicleSelect = document.getElementById('engineVehicle');
+            const imei = vehicleSelect.value;
+            
+            if (!imei) {
+                showError('Please select a vehicle');
+                return;
+            }
+            
+            showLoading('Cutting engine...');
+            
+            try {
+                const response = await fetch('/api/engine/cut', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ imei })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Engine cut command sent successfully!');
+                    checkEngineStatus();
+                } else {
+                    showError(data.error || 'Failed to cut engine');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
         async function startEngine() {
             const vehicleSelect = document.getElementById('engineVehicle');
             const imei = vehicleSelect.value;
@@ -1346,7 +1395,7 @@ async function checkEngineStatus() {
         const data = await response.json();
         
         if (response.ok) {
-            displayEngineStatus(data.engine_status);
+            displayEngineStatus(data.status);
         } else {
             showError(data.error || 'Failed to check engine status');
         }
@@ -1357,10 +1406,34 @@ async function checkEngineStatus() {
 
 function displayEngineStatus(status) {
     const container = document.getElementById('engineStatus');
+    
+    // Determine status color and icon
+    let statusClass = '';
+    let statusIcon = '';
+    
+    if (status === 'Cut') {
+        statusClass = 'status-danger';
+        statusIcon = 'fa-power-off';
+    } else if (status === 'Active') {
+        statusClass = 'status-success';
+        statusIcon = 'fa-play';
+    } else if (status.includes('Processing')) {
+        statusClass = 'status-warning';
+        statusIcon = 'fa-spinner fa-spin';
+    } else if (status.includes('Failed')) {
+        statusClass = 'status-danger';
+        statusIcon = 'fa-exclamation-triangle';
+    } else {
+        statusClass = 'status-secondary';
+        statusIcon = 'fa-question';
+    }
+    
     container.innerHTML = `
         <div class="report-grid">
             <div class="stat-card">
-                <div class="stat-value">${status}</div>
+                <div class="stat-value ${statusClass}">
+                    <i class="fas ${statusIcon}"></i> ${status}
+                </div>
                 <div class="stat-label">Engine Status</div>
             </div>
         </div>
@@ -2593,11 +2666,12 @@ async function acknowledgeAlarm(imei, alarmId) {
                 
                 data.forEach(p => {
                     const key = p.imei;
+                    const plateDisplay = p.license_plate || 'Unknown Vehicle';
                     if (markers[key]) {
                         markers[key].setLatLng([p.lat, p.lon]);
                     } else {
                         markers[key] = L.marker([p.lat, p.lon]).addTo(map)
-                            .bindPopup(`IMEI: ${p.imei}<br>Speed: ${p.speed} km/h`);
+                            .bindPopup(`Vehicle: ${plateDisplay}<br>Speed: ${p.speed} km/h`);
                     }
                 });
             } catch (error) {

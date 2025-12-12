@@ -18,11 +18,12 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS gps_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             timestamp TEXT,
             latitude REAL,
             longitude REAL,
-            speed REAL
+            speed REAL,
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
         )
     ''')
     
@@ -30,7 +31,7 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS trips (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             start_time TEXT,
             end_time TEXT,
             start_lat REAL,
@@ -40,7 +41,8 @@ def init_db():
             distance_km REAL,
             avg_speed REAL,
             max_speed REAL,
-            duration_minutes INTEGER
+            duration_minutes INTEGER,
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
         )
     ''')
     
@@ -48,13 +50,14 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS parking_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             start_time TEXT,
             end_time TEXT,
             latitude REAL,
             longitude REAL,
             duration_minutes INTEGER,
-            event_type TEXT CHECK(event_type IN ('parked', 'idling'))
+            event_type TEXT CHECK(event_type IN ('parked', 'idling')),
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
         )
     ''')
     
@@ -62,12 +65,13 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS fuel_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             timestamp TEXT,
             fuel_level REAL,
             fuel_filled REAL DEFAULT 0,
             fuel_drained REAL DEFAULT 0,
-            event_type TEXT CHECK(event_type IN ('level', 'fill', 'drain'))
+            event_type TEXT CHECK(event_type IN ('level', 'fill', 'drain')),
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
         )
     ''')
     
@@ -75,10 +79,11 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS temperature_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             timestamp TEXT,
             temperature_celsius REAL,
-            sensor_id TEXT
+            sensor_id TEXT,
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
         )
     ''')
     
@@ -128,6 +133,7 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS trip_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vehicle_id INTEGER,
             department TEXT,
             requester_name TEXT,
             request_date TEXT,
@@ -136,7 +142,8 @@ def init_db():
             status TEXT DEFAULT 'pending',
             approved_by TEXT,
             approved_at TEXT,
-            vehicle_assigned TEXT
+            vehicle_assigned TEXT,
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
         )
     ''')
     
@@ -186,55 +193,152 @@ def init_db():
     conn.commit()
     conn.close()
 
-def save_point(imei, ts_iso, lat, lon, speed):
+def migrate_vehicle_ids():
+    """Migrate existing data to populate vehicle_id columns based on IMEI"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    # First, populate vehicle_id columns from IMEI for tables that still have both
+    tables_to_migrate = []
+    
+    # Check which tables still have IMEI columns
+    for table, vehicle_id_col, imei_col in [
+        ('trips', 'vehicle_id', 'imei'),
+        ('parking_events', 'vehicle_id', 'imei'),
+        ('fuel_data', 'vehicle_id', 'imei'),
+        ('temperature_data', 'vehicle_id', 'imei'),
+        ('trip_requests', 'vehicle_id', 'imei')
+    ]:
+        try:
+            c.execute(f'PRAGMA table_info({table})')
+            columns = [col[1] for col in c.fetchall()]
+            if imei_col in columns and vehicle_id_col in columns:
+                tables_to_migrate.append((table, vehicle_id_col, imei_col))
+        except sqlite3.OperationalError:
+            continue
+    
+    # Update vehicle_id based on IMEI for tables that have both columns
+    for table, vehicle_id_col, imei_col in tables_to_migrate:
+        c.execute(f'''
+            UPDATE {table}
+            SET {vehicle_id_col} = (
+                SELECT id FROM vehicles WHERE vehicles.imei = {table}.{imei_col}
+            )
+            WHERE {vehicle_id_col} IS NULL AND {imei_col} IS NOT NULL
+        ''')
+        print(f"Migrated {table}")
+    
+    # Then remove IMEI columns from tables that no longer need them
+    tables_to_remove_imei = ['trips', 'parking_events', 'fuel_data', 'temperature_data']
+    
+    for table in tables_to_remove_imei:
+        try:
+            c.execute(f'PRAGMA table_info({table})')
+            columns = [col[1] for col in c.fetchall()]
+            if 'imei' in columns:
+                c.execute(f'ALTER TABLE {table} DROP COLUMN imei')
+                print(f"Dropped IMEI column from {table}")
+        except (sqlite3.OperationalError, sqlite3.DatabaseError) as e:
+            # Column might not exist or already dropped
+            print(f"Could not drop IMEI from {table}: {e}")
+    
+    conn.commit()
+    conn.close()
+    print("Vehicle ID migration and IMEI column cleanup completed")
+
+def save_trip(vehicle_id, start_time, end_time, start_lat, start_lon, end_lat, end_lon, distance_km, avg_speed, max_speed, duration_minutes):
+    """Save trip data with normalized vehicle_id"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO trips (vehicle_id, start_time, end_time, start_lat, start_lon, end_lat, end_lon, distance_km, avg_speed, max_speed, duration_minutes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (vehicle_id, start_time, end_time, start_lat, start_lon, end_lat, end_lon, distance_km, avg_speed, max_speed, duration_minutes))
+    conn.commit()
+    conn.close()
+
+def save_parking_event(vehicle_id, start_time, end_time, latitude, longitude, duration_minutes, event_type):
+    """Save parking event with normalized vehicle_id"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO parking_events (vehicle_id, start_time, end_time, latitude, longitude, duration_minutes, event_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (vehicle_id, start_time, end_time, latitude, longitude, duration_minutes, event_type))
+    conn.commit()
+    conn.close()
+
+def save_fuel_data(vehicle_id, timestamp, fuel_level, fuel_filled=0, fuel_drained=0, event_type='level'):
+    """Save fuel data with normalized vehicle_id"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO fuel_data (vehicle_id, timestamp, fuel_level, fuel_filled, fuel_drained, event_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (vehicle_id, timestamp, fuel_level, fuel_filled, fuel_drained, event_type))
+    conn.commit()
+    conn.close()
+
+def save_temperature_data(vehicle_id, timestamp, temperature_celsius, sensor_id=None):
+    """Save temperature data with normalized vehicle_id"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO temperature_data (vehicle_id, timestamp, temperature_celsius, sensor_id)
+        VALUES (?, ?, ?, ?)
+    ''', (vehicle_id, timestamp, temperature_celsius, sensor_id))
+    conn.commit()
+    conn.close()
+
+def save_trip_request(vehicle_id, department, requester_name, request_date, purpose, destination, status='pending', approved_by=None, approved_at=None, vehicle_assigned=None):
+    """Save trip request with normalized vehicle_id"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO trip_requests (vehicle_id, department, requester_name, request_date, purpose, destination, status, approved_by, approved_at, vehicle_assigned)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (vehicle_id, department, requester_name, request_date, purpose, destination, status, approved_by, approved_at, vehicle_assigned))
+    conn.commit()
+    conn.close()
+
+def get_vehicle_id_from_imei(imei):
+    """Get vehicle_id from IMEI, return None if not found"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('SELECT id FROM vehicles WHERE imei = ?', (imei,))
+    result = c.fetchone()
+    conn.close()
+    
+    return result[0] if result else None
+
+def save_point(vehicle_id, ts_iso, lat, lon, speed):
     conn_db = sqlite3.connect(DB)
     c = conn_db.cursor()
     c.execute('''
-        INSERT INTO gps_data (imei, timestamp, latitude, longitude, speed)
+        INSERT INTO gps_data (vehicle_id, timestamp, latitude, longitude, speed)
         VALUES (?, ?, ?, ?, ?)
-    ''', (imei, ts_iso, lat, lon, speed))
+    ''', (vehicle_id, ts_iso, lat, lon, speed))
     conn_db.commit()
     conn_db.close()
     
     # Also update positioning data
-    update_positioning_data(imei, lat, lon)
+    update_positioning_data(vehicle_id, lat, lon)
 
-def update_positioning_data(imei, latitude, longitude, heading=None, altitude=None):
+def update_positioning_data(vehicle_id, latitude, longitude, heading=None, altitude=None):
     """Update positioning data for a vehicle"""
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     
-    # Get vehicle_id from imei
-    c.execute('SELECT id FROM vehicles WHERE imei = ?', (imei,))
-    vehicle_result = c.fetchone()
-    
-    if vehicle_result:
-        vehicle_id = vehicle_result[0]
-        
-        # Check if positioning data exists for this vehicle
-        c.execute('SELECT id FROM positioning_data WHERE vehicle_id = ?', (vehicle_id,))
-        existing = c.fetchone()
-        
-        if existing:
-            # Update existing record
-            c.execute(''' 
-                UPDATE positioning_data 
-                SET last_latitude = current_latitude, 
-                    last_longitude = current_longitude,
-                    current_latitude = ?, 
-                    current_longitude = ?,
-                    timestamp = CURRENT_TIMESTAMP,
-                    heading = ?,
-                    altitude = ?
-                WHERE vehicle_id = ?
-            ''', (latitude, longitude, heading, altitude, vehicle_id))
-        else:
-            # Insert new record
-            c.execute(''' 
-                INSERT INTO positioning_data 
-                (vehicle_id, current_latitude, current_longitude, last_latitude, last_longitude, timestamp, heading, altitude)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
-            ''', (vehicle_id, latitude, longitude, latitude, longitude, heading, altitude))
+    # Update or insert positioning data
+    c.execute('''
+        INSERT OR REPLACE INTO positioning_data 
+        (vehicle_id, current_latitude, current_longitude, last_latitude, last_longitude, timestamp, heading, altitude)
+        VALUES (?, ?, ?, 
+                (SELECT current_latitude FROM positioning_data WHERE vehicle_id = ?),
+                (SELECT current_longitude FROM positioning_data WHERE vehicle_id = ?),
+                ?, ?, ?)
+    ''', (vehicle_id, latitude, longitude, vehicle_id, vehicle_id, datetime.datetime.utcnow().isoformat(), heading, altitude))
     
     conn.commit()
     conn.close()
@@ -310,12 +414,28 @@ def handle_client(conn, addr):
                     if ',' in text:
                         parts = text.split(',')
                         if len(parts) >= 5:
-                            imei = parts[0]
+                            identifier = parts[0]
                             timestamp = parts[1]
                             lat = float(parts[2])
                             lon = float(parts[3])
                             speed = float(parts[4])
-                            save_point(imei, timestamp, lat, lon, speed)
+                            
+                            # Check if identifier is numeric (vehicle_id) or IMEI
+                            try:
+                                vehicle_id = int(identifier)
+                                # Direct vehicle_id provided
+                                if vehicle_id > 0:
+                                    save_point(vehicle_id, timestamp, lat, lon, speed)
+                                else:
+                                    print(f"[WARNING] Invalid vehicle_id: {vehicle_id}")
+                            except ValueError:
+                                # IMEI provided, get vehicle_id from IMEI
+                                imei = identifier
+                                vehicle_id = get_vehicle_id_from_imei(imei)
+                                if vehicle_id:
+                                    save_point(vehicle_id, timestamp, lat, lon, speed)
+                                else:
+                                    print(f"[WARNING] Vehicle not found for IMEI: {imei}")
                 except UnicodeDecodeError:
                     pass
 
@@ -337,11 +457,17 @@ def handle_client(conn, addr):
 
                     decoded = try_decode_gt06(frame)
                     if decoded and decoded.get('lat') is not None and decoded.get('lon') is not None:
-                        save_point(
-                            decoded.get('imei', 'UNKNOWN'),
-                            decoded.get('timestamp', datetime.datetime.utcnow().isoformat()),
-                            decoded['lat'], decoded['lon'], decoded.get('speed', 0.0)
-                        )
+                        imei = decoded.get('imei', 'UNKNOWN')
+                        # Get vehicle_id from IMEI
+                        vehicle_id = get_vehicle_id_from_imei(imei) if imei != 'UNKNOWN' else None
+                        if vehicle_id:
+                            save_point(
+                                vehicle_id,
+                                decoded.get('timestamp', datetime.datetime.utcnow().isoformat()),
+                                decoded['lat'], decoded['lon'], decoded.get('speed', 0.0)
+                            )
+                        else:
+                            print(f"[WARNING] Vehicle not found for IMEI: {imei}")
             except Exception as e:
                 print(f"[ERROR] {e}")
                 break
