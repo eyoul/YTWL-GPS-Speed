@@ -86,12 +86,13 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS engine_control (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             command TEXT CHECK(command IN ('cut', 'start', 'status')),
             timestamp TEXT,
             status TEXT DEFAULT 'pending',
             response TEXT,
-            executed_at TEXT
+            executed_at TEXT,
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles (id)
         )
     ''')
     
@@ -99,11 +100,12 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS speed_limits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             speed_limit_kmh REAL,
             set_by TEXT,
             set_at TEXT,
-            is_active INTEGER DEFAULT 1
+            is_active INTEGER DEFAULT 1,
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles (id)
         )
     ''')
     
@@ -111,13 +113,14 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS alarm_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             alarm_type TEXT,
             message TEXT,
             timestamp TEXT,
             acknowledged INTEGER DEFAULT 0,
             acknowledged_by TEXT,
-            acknowledged_at TEXT
+            acknowledged_at TEXT,
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles (id)
         )
     ''')
     
@@ -141,14 +144,15 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS positioning_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            imei TEXT,
+            vehicle_id INTEGER,
             current_latitude REAL,
             current_longitude REAL,
             last_latitude REAL,
             last_longitude REAL,
             timestamp TEXT,
             heading REAL,
-            altitude REAL
+            altitude REAL,
+            FOREIGN KEY (vehicle_id) REFERENCES vehicles (id)
         )
     ''')
     
@@ -193,33 +197,47 @@ def save_point(imei, ts_iso, lat, lon, speed):
     conn_db.close()
     
     # Also update positioning data
-    update_positioning_data(imei, lat, lon, ts_iso)
+    update_positioning_data(imei, lat, lon)
 
-def update_positioning_data(imei, lat, lon, timestamp):
-    conn_db = sqlite3.connect(DB)
-    c = conn_db.cursor()
+def update_positioning_data(imei, latitude, longitude, heading=None, altitude=None):
+    """Update positioning data for a vehicle"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
     
-    # Get last known position
-    c.execute('''
-        SELECT current_latitude, current_longitude FROM positioning_data 
-        WHERE imei = ? ORDER BY timestamp DESC LIMIT 1
-    ''', (imei,))
-    last_pos = c.fetchone()
+    # Get vehicle_id from imei
+    c.execute('SELECT id FROM vehicles WHERE imei = ?', (imei,))
+    vehicle_result = c.fetchone()
     
-    if last_pos:
-        last_lat, last_lon = last_pos
-    else:
-        last_lat, last_lon = lat, lon
+    if vehicle_result:
+        vehicle_id = vehicle_result[0]
+        
+        # Check if positioning data exists for this vehicle
+        c.execute('SELECT id FROM positioning_data WHERE vehicle_id = ?', (vehicle_id,))
+        existing = c.fetchone()
+        
+        if existing:
+            # Update existing record
+            c.execute(''' 
+                UPDATE positioning_data 
+                SET last_latitude = current_latitude, 
+                    last_longitude = current_longitude,
+                    current_latitude = ?, 
+                    current_longitude = ?,
+                    timestamp = CURRENT_TIMESTAMP,
+                    heading = ?,
+                    altitude = ?
+                WHERE vehicle_id = ?
+            ''', (latitude, longitude, heading, altitude, vehicle_id))
+        else:
+            # Insert new record
+            c.execute(''' 
+                INSERT INTO positioning_data 
+                (vehicle_id, current_latitude, current_longitude, last_latitude, last_longitude, timestamp, heading, altitude)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+            ''', (vehicle_id, latitude, longitude, latitude, longitude, heading, altitude))
     
-    # Insert new positioning data
-    c.execute('''
-        INSERT INTO positioning_data 
-        (imei, current_latitude, current_longitude, last_latitude, last_longitude, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (imei, lat, lon, last_lat, last_lon, timestamp))
-    
-    conn_db.commit()
-    conn_db.close()
+    conn.commit()
+    conn.close()
 
 def _parse_bcd_datetime(b: bytes) -> datetime.datetime:
     # YY MM DD HH mm ss, BCD-like but many devices send raw numbers already 0-99

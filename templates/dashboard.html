@@ -285,8 +285,10 @@
             <div class="sidebar-section">
                 <h3><i class="fas fa-cog"></i> Report Settings</h3>
                 <div class="form-group">
-                    <label for="imei">Vehicle IMEI:</label>
-                    <input type="text" id="imei" placeholder="Enter IMEI number">
+                    <label for="vehicleSelect">Select Vehicle:</label>
+                    <select id="vehicleSelect">
+                        <option value="">All Vehicles</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="startDate">Start Date:</label>
@@ -445,12 +447,13 @@
         }
         
         function getReportParams() {
-            const imei = document.getElementById('imei').value;
+            const vehicleSelect = document.getElementById('vehicleSelect');
+            const imei = vehicleSelect.value;
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             
             if (!imei) {
-                showError('Please enter a vehicle IMEI number');
+                showError('Please select a vehicle');
                 return null;
             }
             
@@ -476,10 +479,8 @@
                 document.getElementById('avgSpeed').textContent = avgSpeed;
                 document.getElementById('activeTime').textContent = Math.round(data.length * 0.05);
                 
-                // Auto-populate IMEI if there's data
-                if (uniqueImeis.length > 0 && !document.getElementById('imei').value) {
-                    document.getElementById('imei').value = uniqueImeis[0];
-                }
+                // Load vehicles for dropdowns
+                loadVehicleDropdown('vehicleSelect');
             } catch (error) {
                 console.error('Error loading overview data:', error);
             }
@@ -1064,8 +1065,10 @@
                 <div class="report-card">
                     <h4><i class="fas fa-cogs"></i> Vehicle Engine Control</h4>
                     <div class="form-group">
-                        <label for="engineImei">Vehicle IMEI:</label>
-                        <input type="text" id="engineImei" placeholder="Enter IMEI number">
+                        <label for="engineVehicle">Select Vehicle:</label>
+                        <select id="engineVehicle">
+                            <option value="">Select a vehicle</option>
+                        </select>
                     </div>
                     <div class="report-grid">
                         <button class="btn" onclick="cutEngine()">
@@ -1089,6 +1092,7 @@
                 </div>
             `;
             document.getElementById('reportsContent').innerHTML = html;
+            loadVehicleDropdown('engineVehicle');
         }
         
         function showSpeedLimitControl() {
@@ -1097,8 +1101,10 @@
                 <div class="report-card">
                     <h4><i class="fas fa-tachometer-alt"></i> Set Vehicle Speed Limit</h4>
                     <div class="form-group">
-                        <label for="speedImei">Vehicle IMEI:</label>
-                        <input type="text" id="speedImei" placeholder="Enter IMEI number">
+                        <label for="speedVehicle">Select Vehicle:</label>
+                        <select id="speedVehicle">
+                            <option value="">Select a vehicle</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="speedLimit">Speed Limit (km/h):</label>
@@ -1125,6 +1131,7 @@
                 </div>
             `;
             document.getElementById('reportsContent').innerHTML = html;
+            loadVehicleDropdown('speedVehicle');
         }
         
         function showPositioning() {
@@ -1133,8 +1140,10 @@
                 <div class="report-card">
                     <h4><i class="fas fa-map-marker-alt"></i> Vehicle Positioning Data</h4>
                     <div class="form-group">
-                        <label for="positionImei">Vehicle IMEI:</label>
-                        <input type="text" id="positionImei" placeholder="Enter IMEI number">
+                        <label for="positionVehicle">Select Vehicle:</label>
+                        <select id="positionVehicle">
+                            <option value="">Select a vehicle</option>
+                        </select>
                     </div>
                     <button class="btn" onclick="getPositioningData()">
                         <i class="fas fa-search"></i> Get Positioning Data
@@ -1150,6 +1159,7 @@
                 </div>
             `;
             document.getElementById('reportsContent').innerHTML = html;
+            loadVehicleDropdown('positionVehicle');
         }
         
         function showAlarmLogs() {
@@ -1158,8 +1168,10 @@
                 <div class="report-card">
                     <h4><i class="fas fa-exclamation-triangle"></i> System Alarm Logs</h4>
                     <div class="form-group">
-                        <label for="alarmImei">Vehicle IMEI (optional):</label>
-                        <input type="text" id="alarmImei" placeholder="Filter by IMEI (leave empty for all)">
+                        <label for="alarmVehicle">Filter by Vehicle (optional):</label>
+                        <select id="alarmVehicle">
+                            <option value="">All Vehicles</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="alarmLimit">Number of records:</label>
@@ -1179,6 +1191,7 @@
                 </div>
             `;
             document.getElementById('reportsContent').innerHTML = html;
+            loadVehicleDropdown('alarmVehicle');
         }
         
         function showTripRequests() {
@@ -1243,46 +1256,16 @@
             document.getElementById('reportsContent').innerHTML = html;
         }
         
-        // Engine Control Functions
-        async function cutEngine() {
-            const imei = document.getElementById('engineImei').value;
-            if (!imei) {
-                showError('Please enter a vehicle IMEI');
-                return;
-            }
-            
-            showLoading('Sending engine cut command...');
-            
-            try {
-                const response = await fetch('/api/engine/cut', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ imei })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    showSuccess('Engine cut command sent successfully!');
-                    loadEngineHistory(imei);
-                } else {
-                    showError(data.error || 'Failed to send engine cut command');
-                }
-            } catch (error) {
-                showError('Error: ' + error.message);
-            }
-        }
-        
         async function startEngine() {
-            const imei = document.getElementById('engineImei').value;
+            const vehicleSelect = document.getElementById('engineVehicle');
+            const imei = vehicleSelect.value;
+            
             if (!imei) {
-                showError('Please enter a vehicle IMEI');
+                showError('Please select a vehicle');
                 return;
             }
             
-            showLoading('Sending engine start command...');
+            showLoading('Starting engine...');
             
             try {
                 const response = await fetch('/api/engine/start', {
@@ -1297,250 +1280,319 @@
                 
                 if (response.ok) {
                     showSuccess('Engine start command sent successfully!');
-                    loadEngineHistory(imei);
+                    checkEngineStatus();
                 } else {
-                    showError(data.error || 'Failed to send engine start command');
+                    showError(data.error || 'Failed to start engine');
                 }
             } catch (error) {
                 showError('Error: ' + error.message);
             }
         }
+
+async function checkEngineStatus() {
+    const vehicleSelect = document.getElementById('engineVehicle');
+    const imei = vehicleSelect.value;
+    
+    if (!imei) {
+        showError('Please select a vehicle');
+        return;
+    }
+    
+    showLoading('Checking engine status...');
+    
+    try {
+        const response = await fetch(`/api/engine/status?imei=${imei}`);
+        const data = await response.json();
         
-        async function checkEngineStatus() {
-            const imei = document.getElementById('engineImei').value;
-            if (!imei) {
-                showError('Please enter a vehicle IMEI');
-                return;
-            }
-            
-            showLoading('Checking engine status...');
-            
-            try {
-                const response = await fetch(`/api/engine/status?imei=${imei}`);
-                const data = await response.json();
-                
-                if (response.ok) {
-                    showSuccess('Engine status retrieved successfully!');
-                    displayEngineHistory(data.engine_history);
-                } else {
-                    showError(data.error || 'Failed to get engine status');
-                }
-            } catch (error) {
-                showError('Error: ' + error.message);
-            }
+        if (response.ok) {
+            displayEngineStatus(data.engine_status);
+        } else {
+            showError(data.error || 'Failed to check engine status');
         }
+    } catch (error) {
+        showError('Error: ' + error.message);
+    }
+}
+
+function displayEngineStatus(status) {
+    const container = document.getElementById('engineStatus');
+    container.innerHTML = `
+        <div class="report-grid">
+            <div class="stat-card">
+                <div class="stat-value">${status}</div>
+                <div class="stat-label">Engine Status</div>
+            </div>
+        </div>
+    `;
+}
+
+// Speed Limit Functions
+async function setSpeedLimit() {
+    const vehicleSelect = document.getElementById('speedVehicle');
+    const imei = vehicleSelect.value;
+    const speedLimit = document.getElementById('speedLimit').value;
+    const setBy = document.getElementById('setBy').value;
+    
+    if (!imei) {
+        showError('Please select a vehicle');
+        return;
+    }
+    
+    if (!speedLimit || speedLimit <= 0) {
+        showError('Please enter a valid speed limit');
+        return;
+    }
+    
+    if (!setBy) {
+        showError('Please enter who is setting this limit');
+        return;
+    }
+    
+    showLoading('Setting speed limit...');
+    
+    try {
+        const response = await fetch('/api/speed_limit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ imei, speed_limit: parseInt(speedLimit), set_by: setBy })
+        });
         
-        function displayEngineHistory(history) {
-            const container = document.getElementById('engineHistoryContainer');
-            const content = document.getElementById('engineHistory');
-            
-            if (!history || history.length === 0) {
-                content.innerHTML = '<p>No engine command history available.</p>';
-            } else {
-                const html = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Command</th>
-                                <th>Status</th>
-                                <th>Response</th>
-                                <th>Timestamp</th>
-                                <th>Executed At</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${history.map(cmd => `
-                                <tr>
-                                    <td><span class="badge bg-info">${cmd.command}</span></td>
-                                    <td><span class="badge ${cmd.status === 'completed' ? 'bg-success' : 'bg-warning'}">${cmd.status}</span></td>
-                                    <td>${cmd.response}</td>
-                                    <td>${new Date(cmd.timestamp).toLocaleString()}</td>
-                                    <td>${cmd.executed_at ? new Date(cmd.executed_at).toLocaleString() : '-'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-                content.innerHTML = html;
-            }
-            
-            container.style.display = 'block';
-        }
+        const data = await response.json();
         
-        // Speed Limit Functions
-        async function setSpeedLimit() {
-            const imei = document.getElementById('speedImei').value;
-            const speedLimit = document.getElementById('speedLimit').value;
-            const setBy = document.getElementById('setBy').value;
-            
-            if (!imei || !speedLimit) {
-                showError('Please enter IMEI and speed limit');
-                return;
-            }
-            
-            showLoading('Setting speed limit...');
-            
-            try {
-                const response = await fetch('/api/speed_limit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ imei, speed_limit_kmh: parseFloat(speedLimit), set_by: setBy })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    showSuccess(data.message);
-                } else {
-                    showError(data.error || 'Failed to set speed limit');
-                }
-            } catch (error) {
-                showError('Error: ' + error.message);
-            }
+        if (response.ok) {
+            showSuccess('Speed limit set successfully!');
+            getCurrentSpeedLimit();
+        } else {
+            showError(data.error || 'Failed to set speed limit');
         }
+    } catch (error) {
+        showError('Error: ' + error.message);
+    }
+}
+
+async function getCurrentSpeedLimit() {
+    const vehicleSelect = document.getElementById('speedVehicle');
+    const imei = vehicleSelect.value;
+    
+    if (!imei) {
+        showError('Please select a vehicle');
+        return;
+    }
+    
+    showLoading('Getting current speed limit...');
+    
+    try {
+        const response = await fetch(`/api/speed_limit?imei=${imei}`);
+        const data = await response.json();
         
-        async function getCurrentSpeedLimit() {
-            const imei = document.getElementById('speedImei').value;
-            if (!imei) {
-                showError('Please enter a vehicle IMEI');
-                return;
-            }
-            
-            showLoading('Getting current speed limit...');
-            
-            try {
-                const response = await fetch(`/api/speed_limit?imei=${imei}`);
-                const data = await response.json();
-                
-                if (response.ok) {
-                    displayCurrentSpeedLimit(data.speed_limit);
-                } else {
-                    showError(data.error || 'Failed to get speed limit');
-                }
-            } catch (error) {
-                showError('Error: ' + error.message);
-            }
+        if (response.ok) {
+            displayCurrentSpeedLimit(data.speed_limit);
+        } else {
+            showError(data.error || 'Failed to get speed limit');
         }
+    } catch (error) {
+        showError('Error: ' + error.message);
+    }
+}
+
+function displayCurrentSpeedLimit(speedLimitData) {
+    const container = document.getElementById('currentSpeedLimitContainer');
+    const content = document.getElementById('currentSpeedLimit');
+    
+    if (!speedLimitData) {
+        content.innerHTML = '<p>No speed limit set for this vehicle.</p>';
+    } else {
+        content.innerHTML = `
+            <div class="report-grid">
+                <div class="stat-card">
+                    <div class="stat-value">${speedLimitData.speed_limit}</div>
+                    <div class="stat-label">Speed Limit</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${speedLimitData.set_by}</div>
+                    <div class="stat-label">Set By</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${new Date(speedLimitData.set_at).toLocaleString()}</div>
+                    <div class="stat-label">Set At</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    container.style.display = 'block';
+}
+
+// Positioning Functions
+async function getPositioningData() {
+    const vehicleSelect = document.getElementById('positionVehicle');
+    const imei = vehicleSelect.value;
+    
+    if (!imei) {
+        showError('Please select a vehicle');
+        return;
+    }
+    
+    showLoading('Getting positioning data...');
+    
+    try {
+        const response = await fetch(`/api/positioning?imei=${imei}`);
+        const data = await response.json();
         
-        function displayCurrentSpeedLimit(speedLimitData) {
-            const container = document.getElementById('currentSpeedLimitContainer');
-            const content = document.getElementById('currentSpeedLimit');
-            
-            if (!speedLimitData) {
-                content.innerHTML = '<p>No speed limit set for this vehicle.</p>';
-            } else {
-                content.innerHTML = `
-                    <div class="report-grid">
-                        <div class="stat-card">
-                            <div class="stat-value">${speedLimitData.speed_limit_kmh}</div>
-                            <div class="stat-label">Speed Limit (km/h)</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${speedLimitData.set_by}</div>
-                            <div class="stat-label">Set By</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${new Date(speedLimitData.set_at).toLocaleString()}</div>
-                            <div class="stat-label">Set At</div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            container.style.display = 'block';
+        if (response.ok) {
+            displayPositioningData(data.positioning_data);
+        } else {
+            showError(data.error || 'Failed to get positioning data');
         }
+    } catch (error) {
+        showError('Error: ' + error.message);
+    }
+}
+
+function displayPositioningData(positioningData) {
+    const container = document.getElementById('positioningDataContainer');
+    const content = document.getElementById('positioningData');
+    
+    if (!positioningData) {
+        content.innerHTML = '<p>No positioning data available for this vehicle.</p>';
+    } else {
+        const html = `
+            <div class="report-grid">
+                <div class="stat-card">
+                    <div class="stat-value">${positioningData.current_latitude.toFixed(6)}</div>
+                    <div class="stat-label">Current Latitude</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${positioningData.current_longitude.toFixed(6)}</div>
+                    <div class="stat-label">Current Longitude</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${positioningData.last_latitude.toFixed(6)}</div>
+                    <div class="stat-label">Last Latitude</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${positioningData.last_longitude.toFixed(6)}</div>
+                    <div class="stat-label">Last Longitude</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${positioningData.heading || '-'}</div>
+                    <div class="stat-label">Heading</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${positioningData.altitude || '-'}</div>
+                    <div class="stat-label">Altitude</div>
+                </div>
+            </div>
+            <p style="margin-top: 1rem;"><strong>Last Update:</strong> ${new Date(positioningData.timestamp).toLocaleString()}</p>
+        `;
+        content.innerHTML = html;
+    }
+    
+    container.style.display = 'block';
+}
+
+// Alarm Functions
+async function loadAlarmLogs() {
+    const vehicleSelect = document.getElementById('alarmVehicle');
+    const imei = vehicleSelect.value || undefined;
+    const limit = parseInt(document.getElementById('alarmLimit').value) || 100;
+    
+    showLoading('Loading alarm logs...');
+    
+    try {
+        const params = new URLSearchParams();
+        if (imei) params.append('imei', imei);
+        params.append('limit', limit);
         
-        // Positioning Functions
-        async function getPositioningData() {
-            const imei = document.getElementById('positionImei').value;
-            if (!imei) {
-                showError('Please enter a vehicle IMEI');
-                return;
-            }
-            
-            showLoading('Getting positioning data...');
-            
-            try {
-                const response = await fetch(`/api/positioning?imei=${imei}`);
-                const data = await response.json();
-                
-                if (response.ok) {
-                    displayPositioningData(data.positioning_data);
-                } else {
-                    showError(data.error || 'Failed to get positioning data');
-                }
-            } catch (error) {
-                showError('Error: ' + error.message);
-            }
-        }
+        const response = await fetch(`/api/alarms?${params}`);
+        const data = await response.json();
         
-        function displayPositioningData(positioningData) {
-            const container = document.getElementById('positioningDataContainer');
-            const content = document.getElementById('positioningData');
-            
-            if (!positioningData) {
-                content.innerHTML = '<p>No positioning data available for this vehicle.</p>';
-            } else {
-                const html = `
-                    <div class="report-grid">
-                        <div class="stat-card">
-                            <div class="stat-value">${positioningData.current_latitude.toFixed(6)}</div>
-                            <div class="stat-label">Current Latitude</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${positioningData.current_longitude.toFixed(6)}</div>
-                            <div class="stat-label">Current Longitude</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${positioningData.last_latitude.toFixed(6)}</div>
-                            <div class="stat-label">Last Latitude</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${positioningData.last_longitude.toFixed(6)}</div>
-                            <div class="stat-label">Last Longitude</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${positioningData.heading || '-'}</div>
-                            <div class="stat-label">Heading</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${positioningData.altitude || '-'}</div>
-                            <div class="stat-label">Altitude</div>
-                        </div>
-                    </div>
-                    <p style="margin-top: 1rem;"><strong>Last Update:</strong> ${new Date(positioningData.timestamp).toLocaleString()}</p>
-                `;
-                content.innerHTML = html;
-            }
-            
-            container.style.display = 'block';
+        if (response.ok) {
+            displayAlarmLogs(data.alarms);
+        } else {
+            showError(data.error || 'Failed to load alarm logs');
         }
+    } catch (error) {
+        showError('Error: ' + error.message);
+    }
+}
+
+function displayAlarmLogs(alarms) {
+    const container = document.getElementById('alarmLogsContainer');
+    const content = document.getElementById('alarmLogs');
+    
+    if (!alarms || alarms.length === 0) {
+        content.innerHTML = '<p>No alarm logs available.</p>';
+    } else {
+        const html = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>IMEI</th>
+                        <th>Alarm Type</th>
+                        <th>Message</th>
+                        <th>Timestamp</th>
+                        <th>Acknowledged</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${alarms.map(alarm => `
+                        <tr>
+                            <td>${alarm.imei}</td>
+                            <td><span class="badge bg-warning">${alarm.alarm_type}</span></td>
+                            <td>${alarm.message}</td>
+                            <td>${new Date(alarm.timestamp).toLocaleString()}</td>
+                            <td>
+                                ${alarm.acknowledged ? 
+                                    `<span class="badge bg-success">Yes (${alarm.acknowledged_by})</span>` : 
+                                    '<span class="badge bg-danger">No</span>'}
+                            </td>
+                            <td>
+                                ${!alarm.acknowledged ? 
+                                    `<button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="acknowledgeAlarm('${alarm.imei}', ${alarm.id})">
+                                        <i class="fas fa-check"></i> Acknowledge
+                                    </button>` : 
+                                    '-'}
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        content.innerHTML = html;
+    }
+    
+    container.style.display = 'block';
+}
+
+async function acknowledgeAlarm(imei, alarmId) {
+    showLoading('Acknowledging alarm...');
+    
+    try {
+        const response = await fetch('/api/alarms/acknowledge', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ imei, alarm_id: alarmId, acknowledged_by: 'dashboard_user' })
+        });
         
-        // Alarm Functions
-        async function loadAlarmLogs() {
-            const imei = document.getElementById('alarmImei').value;
-            const limit = document.getElementById('alarmLimit').value || 100;
-            
-            showLoading('Loading alarm logs...');
-            
-            try {
-                const params = new URLSearchParams({ limit });
-                if (imei) params.append('imei', imei);
-                
-                const response = await fetch(`/api/alarms?${params}`);
-                const data = await response.json();
-                
-                if (response.ok) {
-                    displayAlarmLogs(data.alarms);
-                } else {
-                    showError(data.error || 'Failed to load alarm logs');
-                }
-            } catch (error) {
-                showError('Error: ' + error.message);
-            }
+        const data = await response.json();
+        
+        if (response.ok) {
+            showSuccess('Alarm acknowledged successfully!');
+            // Reload alarm logs
+            loadAlarmLogs();
+        } else {
+            showError(data.error || 'Failed to acknowledge alarm');
         }
+    } catch (error) {
+        showError('Error: ' + error.message);
+    }
+}
         
         function displayAlarmLogs(alarms) {
             const container = document.getElementById('alarmLogsContainer');
@@ -2267,6 +2319,32 @@
             document.getElementById('typeBreakdown').innerHTML = typeHtml;
             
             container.style.display = 'block';
+        }
+        
+        // Vehicle Dropdown Loading Function
+        async function loadVehicleDropdown(dropdownId) {
+            try {
+                const response = await fetch('/api/vehicles');
+                const data = await response.json();
+                
+                if (response.ok && data.vehicles) {
+                    const dropdown = document.getElementById(dropdownId);
+                    if (dropdown) {
+                        // Clear existing options except the first one
+                        dropdown.innerHTML = dropdown.options.length > 0 ? dropdown.options[0].outerHTML : '';
+                        
+                        // Add vehicle options
+                        data.vehicles.forEach(vehicle => {
+                            const option = document.createElement('option');
+                            option.value = vehicle.imei;
+                            option.textContent = `${vehicle.make || 'Unknown'} ${vehicle.model || ''} (${vehicle.imei})`;
+                            dropdown.appendChild(option);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading vehicles:', error);
+            }
         }
         
         function showLiveMap() {
