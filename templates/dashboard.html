@@ -105,6 +105,47 @@
             background: #5a6268;
         }
         
+        .btn-primary {
+            background: #667eea;
+        }
+        
+        .btn-primary:hover {
+            background: #5a6fd6;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .form-group label {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input,
+        .form-group select {
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-group input[readonly] {
+            background: #f8f9fa;
+            color: #6c757d;
+        }
+        
         .reports {
             width: calc(100% - 300px);
             display: flex;
@@ -2205,10 +2246,167 @@ async function acknowledgeAlarm(imei, alarmId) {
             document.getElementById('reportsContent').innerHTML = html;
         }
         
+        function showEditVehicleForm(vehicle) {
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-edit"></i> Edit Vehicle</h4>
+                    <form id="editVehicleForm" onsubmit="saveVehicle(event, ${vehicle.id})">
+                        <div class="report-grid">
+                            <div class="form-group">
+                                <label>IMEI:</label>
+                                <input type="text" name="imei" value="${vehicle.imei}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>License Plate:</label>
+                                <input type="text" name="license_plate" value="${vehicle.license_plate || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Make:</label>
+                                <input type="text" name="make" value="${vehicle.make || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Model:</label>
+                                <input type="text" name="model" value="${vehicle.model || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Year:</label>
+                                <input type="number" name="year" value="${vehicle.year || ''}" min="1900" max="2030">
+                            </div>
+                            <div class="form-group">
+                                <label>Color:</label>
+                                <input type="text" name="color" value="${vehicle.color || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Vehicle Type:</label>
+                                <select name="vehicle_type">
+                                    <option value="car" ${vehicle.vehicle_type === 'car' ? 'selected' : ''}>Car</option>
+                                    <option value="truck" ${vehicle.vehicle_type === 'truck' ? 'selected' : ''}>Truck</option>
+                                    <option value="van" ${vehicle.vehicle_type === 'van' ? 'selected' : ''}>Van</option>
+                                    <option value="motorcycle" ${vehicle.vehicle_type === 'motorcycle' ? 'selected' : ''}>Motorcycle</option>
+                                    <option value="bus" ${vehicle.vehicle_type === 'bus' ? 'selected' : ''}>Bus</option>
+                                    <option value="other" ${vehicle.vehicle_type === 'other' ? 'selected' : ''}>Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Driver Name:</label>
+                                <input type="text" name="driver_name" value="${vehicle.driver_name || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Driver Contact:</label>
+                                <input type="text" name="driver_contact" value="${vehicle.driver_contact || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Department:</label>
+                                <input type="text" name="department" value="${vehicle.department || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Status:</label>
+                                <select name="status">
+                                    <option value="active" ${vehicle.status === 'active' ? 'selected' : ''}>Active</option>
+                                    <option value="inactive" ${vehicle.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                                    <option value="maintenance" ${vehicle.status === 'maintenance' ? 'selected' : ''}>Maintenance</option>
+                                    <option value="retired" ${vehicle.status === 'retired' ? 'selected' : ''}>Retired</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Fuel Capacity (L):</label>
+                                <input type="number" name="fuel_capacity" value="${vehicle.fuel_capacity || ''}" step="0.1" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Current Fuel (L):</label>
+                                <input type="number" name="current_fuel" value="${vehicle.current_fuel || ''}" step="0.1" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Mileage:</label>
+                                <input type="number" name="mileage" value="${vehicle.mileage || ''}" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Last Service Date:</label>
+                                <input type="date" name="last_service_date" value="${vehicle.last_service_date || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Next Service Date:</label>
+                                <input type="date" name="next_service_date" value="${vehicle.next_service_date || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Insurance Expiry:</label>
+                                <input type="date" name="insurance_expiry" value="${vehicle.insurance_expiry || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Registration Expiry:</label>
+                                <input type="date" name="registration_expiry" value="${vehicle.registration_expiry || ''}">
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Changes
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="showVehicleManagement()">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        async function saveVehicle(event, vehicleId) {
+            event.preventDefault();
+            
+            const form = document.getElementById('editVehicleForm');
+            const formData = new FormData(form);
+            
+            // Convert FormData to object
+            const vehicleData = {};
+            for (let [key, value] of formData.entries()) {
+                if (value.trim() !== '') {
+                    vehicleData[key] = value;
+                }
+            }
+            
+            showLoading('Saving vehicle...');
+            
+            try {
+                const response = await fetch(`/api/vehicles/${vehicleId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(vehicleData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Vehicle updated successfully!');
+                    showVehicleManagement();
+                } else {
+                    showError(data.error || 'Failed to update vehicle');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
         function editVehicle(vehicleId) {
             // Load vehicle data and show edit form
-            viewVehicle(vehicleId);
-            // TODO: Implement edit form
+            showLoading('Loading vehicle for editing...');
+            
+            fetch(`/api/vehicles/${vehicleId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to load vehicle');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    showEditVehicleForm(data.vehicle);
+                })
+                .catch(error => {
+                    showError('Error: ' + error.message);
+                });
         }
         
         async function deleteVehicle(vehicleId) {
