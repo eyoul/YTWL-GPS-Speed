@@ -82,6 +82,103 @@ def init_db():
         )
     ''')
     
+    # Engine control table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS engine_control (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT,
+            command TEXT CHECK(command IN ('cut', 'start', 'status')),
+            timestamp TEXT,
+            status TEXT DEFAULT 'pending',
+            response TEXT,
+            executed_at TEXT
+        )
+    ''')
+    
+    # Speed limits table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS speed_limits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT,
+            speed_limit_kmh REAL,
+            set_by TEXT,
+            set_at TEXT,
+            is_active INTEGER DEFAULT 1
+        )
+    ''')
+    
+    # Alarm logs table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS alarm_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT,
+            alarm_type TEXT,
+            message TEXT,
+            timestamp TEXT,
+            acknowledged INTEGER DEFAULT 0,
+            acknowledged_by TEXT,
+            acknowledged_at TEXT
+        )
+    ''')
+    
+    # Trip requests table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS trip_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            department TEXT,
+            requester_name TEXT,
+            request_date TEXT,
+            purpose TEXT,
+            destination TEXT,
+            status TEXT DEFAULT 'pending',
+            approved_by TEXT,
+            approved_at TEXT,
+            vehicle_assigned TEXT
+        )
+    ''')
+    
+    # Positioning data table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS positioning_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT,
+            current_latitude REAL,
+            current_longitude REAL,
+            last_latitude REAL,
+            last_longitude REAL,
+            timestamp TEXT,
+            heading REAL,
+            altitude REAL
+        )
+    ''')
+    
+    # Vehicles table for CRUD operations
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS vehicles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imei TEXT UNIQUE NOT NULL,
+            license_plate TEXT,
+            make TEXT,
+            model TEXT,
+            year INTEGER,
+            color TEXT,
+            vehicle_type TEXT,
+            driver_name TEXT,
+            driver_contact TEXT,
+            department TEXT,
+            status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'maintenance', 'retired')),
+            fuel_capacity REAL,
+            current_fuel REAL DEFAULT 0,
+            mileage REAL DEFAULT 0,
+            last_service_date TEXT,
+            next_service_date TEXT,
+            insurance_expiry TEXT,
+            registration_expiry TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
@@ -92,6 +189,35 @@ def save_point(imei, ts_iso, lat, lon, speed):
         INSERT INTO gps_data (imei, timestamp, latitude, longitude, speed)
         VALUES (?, ?, ?, ?, ?)
     ''', (imei, ts_iso, lat, lon, speed))
+    conn_db.commit()
+    conn_db.close()
+    
+    # Also update positioning data
+    update_positioning_data(imei, lat, lon, ts_iso)
+
+def update_positioning_data(imei, lat, lon, timestamp):
+    conn_db = sqlite3.connect(DB)
+    c = conn_db.cursor()
+    
+    # Get last known position
+    c.execute('''
+        SELECT current_latitude, current_longitude FROM positioning_data 
+        WHERE imei = ? ORDER BY timestamp DESC LIMIT 1
+    ''', (imei,))
+    last_pos = c.fetchone()
+    
+    if last_pos:
+        last_lat, last_lon = last_pos
+    else:
+        last_lat, last_lon = lat, lon
+    
+    # Insert new positioning data
+    c.execute('''
+        INSERT INTO positioning_data 
+        (imei, current_latitude, current_longitude, last_latitude, last_longitude, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (imei, lat, lon, last_lat, last_lon, timestamp))
+    
     conn_db.commit()
     conn_db.close()
 

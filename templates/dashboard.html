@@ -321,6 +321,42 @@
             </div>
             
             <div class="sidebar-section">
+                <h3><i class="fas fa-truck"></i> Vehicle Management</h3>
+                <button class="btn" onclick="showVehicleManagement()">
+                    <i class="fas fa-list"></i> Vehicle List
+                </button>
+                <button class="btn" onclick="showCreateVehicle()">
+                    <i class="fas fa-plus"></i> Add Vehicle
+                </button>
+                <button class="btn btn-secondary" onclick="showVehicleStatistics()">
+                    <i class="fas fa-chart-pie"></i> Statistics
+                </button>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3><i class="fas fa-car"></i> Vehicle Control</h3>
+                <button class="btn" onclick="showEngineControl()">
+                    <i class="fas fa-cogs"></i> Engine Control
+                </button>
+                <button class="btn" onclick="showSpeedLimitControl()">
+                    <i class="fas fa-tachometer-alt"></i> Set Speed Limit
+                </button>
+                <button class="btn" onclick="showPositioning()">
+                    <i class="fas fa-map-marker-alt"></i> Positioning
+                </button>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3><i class="fas fa-bell"></i> System Management</h3>
+                <button class="btn" onclick="showAlarmLogs()">
+                    <i class="fas fa-exclamation-triangle"></i> Alarm Logs
+                </button>
+                <button class="btn" onclick="showTripRequests()">
+                    <i class="fas fa-clipboard-list"></i> Trip Requests
+                </button>
+            </div>
+            
+            <div class="sidebar-section">
                 <h3><i class="fas fa-map"></i> Navigation</h3>
                 <button class="btn" onclick="showLiveMap()">
                     <i class="fas fa-satellite-dish"></i> Live Map
@@ -1022,6 +1058,1217 @@
             `;
         }
         
+        function showEngineControl() {
+            updateTitle('Engine Control');
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-cogs"></i> Vehicle Engine Control</h4>
+                    <div class="form-group">
+                        <label for="engineImei">Vehicle IMEI:</label>
+                        <input type="text" id="engineImei" placeholder="Enter IMEI number">
+                    </div>
+                    <div class="report-grid">
+                        <button class="btn" onclick="cutEngine()">
+                            <i class="fas fa-power-off"></i> Cut Engine
+                        </button>
+                        <button class="btn" onclick="startEngine()">
+                            <i class="fas fa-play"></i> Start Engine
+                        </button>
+                        <button class="btn btn-secondary" onclick="checkEngineStatus()">
+                            <i class="fas fa-info-circle"></i> Check Status
+                        </button>
+                    </div>
+                    <div id="engineStatus"></div>
+                </div>
+                
+                <div id="engineHistoryContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-history"></i> Engine Command History</h4>
+                        <div id="engineHistory"></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function showSpeedLimitControl() {
+            updateTitle('Speed Limit Control');
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-tachometer-alt"></i> Set Vehicle Speed Limit</h4>
+                    <div class="form-group">
+                        <label for="speedImei">Vehicle IMEI:</label>
+                        <input type="text" id="speedImei" placeholder="Enter IMEI number">
+                    </div>
+                    <div class="form-group">
+                        <label for="speedLimit">Speed Limit (km/h):</label>
+                        <input type="number" id="speedLimit" placeholder="Enter speed limit" min="0" max="200">
+                    </div>
+                    <div class="form-group">
+                        <label for="setBy">Set By:</label>
+                        <input type="text" id="setBy" placeholder="Your name">
+                    </div>
+                    <button class="btn" onclick="setSpeedLimit()">
+                        <i class="fas fa-check"></i> Set Speed Limit
+                    </button>
+                    <button class="btn btn-secondary" onclick="getCurrentSpeedLimit()">
+                        <i class="fas fa-search"></i> Get Current Limit
+                    </button>
+                    <div id="speedLimitStatus"></div>
+                </div>
+                
+                <div id="currentSpeedLimitContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-info"></i> Current Speed Limit</h4>
+                        <div id="currentSpeedLimit"></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function showPositioning() {
+            updateTitle('Vehicle Positioning');
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-map-marker-alt"></i> Vehicle Positioning Data</h4>
+                    <div class="form-group">
+                        <label for="positionImei">Vehicle IMEI:</label>
+                        <input type="text" id="positionImei" placeholder="Enter IMEI number">
+                    </div>
+                    <button class="btn" onclick="getPositioningData()">
+                        <i class="fas fa-search"></i> Get Positioning Data
+                    </button>
+                    <div id="positioningStatus"></div>
+                </div>
+                
+                <div id="positioningDataContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-location-arrow"></i> Position Information</h4>
+                        <div id="positioningData"></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function showAlarmLogs() {
+            updateTitle('Alarm Logs');
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-exclamation-triangle"></i> System Alarm Logs</h4>
+                    <div class="form-group">
+                        <label for="alarmImei">Vehicle IMEI (optional):</label>
+                        <input type="text" id="alarmImei" placeholder="Filter by IMEI (leave empty for all)">
+                    </div>
+                    <div class="form-group">
+                        <label for="alarmLimit">Number of records:</label>
+                        <input type="number" id="alarmLimit" value="100" min="1" max="1000">
+                    </div>
+                    <button class="btn" onclick="loadAlarmLogs()">
+                        <i class="fas fa-search"></i> Load Alarm Logs
+                    </button>
+                    <div id="alarmStatus"></div>
+                </div>
+                
+                <div id="alarmLogsContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-list"></i> Alarm History</h4>
+                        <div id="alarmLogs"></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function showTripRequests() {
+            updateTitle('Trip Requests Management');
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-clipboard-list"></i> Trip Request Management</h4>
+                    <div class="form-group">
+                        <label for="requestStatus">Filter by Status:</label>
+                        <select id="requestStatus">
+                            <option value="">All Requests</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="loadTripRequests()">
+                        <i class="fas fa-search"></i> Load Trip Requests
+                    </button>
+                    <button class="btn" onclick="showCreateTripRequest()">
+                        <i class="fas fa-plus"></i> Create New Request
+                    </button>
+                    <div id="tripRequestStatus"></div>
+                </div>
+                
+                <div id="tripRequestsContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-list"></i> Trip Requests</h4>
+                        <div id="tripRequests"></div>
+                    </div>
+                </div>
+                
+                <div id="createTripRequestContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-plus"></i> Create Trip Request</h4>
+                        <div class="form-group">
+                            <label for="department">Department:</label>
+                            <input type="text" id="department" placeholder="Enter department name">
+                        </div>
+                        <div class="form-group">
+                            <label for="requesterName">Requester Name:</label>
+                            <input type="text" id="requesterName" placeholder="Enter your name">
+                        </div>
+                        <div class="form-group">
+                            <label for="purpose">Purpose:</label>
+                            <input type="text" id="purpose" placeholder="Enter trip purpose">
+                        </div>
+                        <div class="form-group">
+                            <label for="destination">Destination:</label>
+                            <input type="text" id="destination" placeholder="Enter destination">
+                        </div>
+                        <button class="btn" onclick="createTripRequest()">
+                            <i class="fas fa-check"></i> Submit Request
+                        </button>
+                        <button class="btn btn-secondary" onclick="cancelTripRequest()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <div id="createTripStatus"></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        // Engine Control Functions
+        async function cutEngine() {
+            const imei = document.getElementById('engineImei').value;
+            if (!imei) {
+                showError('Please enter a vehicle IMEI');
+                return;
+            }
+            
+            showLoading('Sending engine cut command...');
+            
+            try {
+                const response = await fetch('/api/engine/cut', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ imei })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Engine cut command sent successfully!');
+                    loadEngineHistory(imei);
+                } else {
+                    showError(data.error || 'Failed to send engine cut command');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        async function startEngine() {
+            const imei = document.getElementById('engineImei').value;
+            if (!imei) {
+                showError('Please enter a vehicle IMEI');
+                return;
+            }
+            
+            showLoading('Sending engine start command...');
+            
+            try {
+                const response = await fetch('/api/engine/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ imei })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Engine start command sent successfully!');
+                    loadEngineHistory(imei);
+                } else {
+                    showError(data.error || 'Failed to send engine start command');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        async function checkEngineStatus() {
+            const imei = document.getElementById('engineImei').value;
+            if (!imei) {
+                showError('Please enter a vehicle IMEI');
+                return;
+            }
+            
+            showLoading('Checking engine status...');
+            
+            try {
+                const response = await fetch(`/api/engine/status?imei=${imei}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Engine status retrieved successfully!');
+                    displayEngineHistory(data.engine_history);
+                } else {
+                    showError(data.error || 'Failed to get engine status');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function displayEngineHistory(history) {
+            const container = document.getElementById('engineHistoryContainer');
+            const content = document.getElementById('engineHistory');
+            
+            if (!history || history.length === 0) {
+                content.innerHTML = '<p>No engine command history available.</p>';
+            } else {
+                const html = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Command</th>
+                                <th>Status</th>
+                                <th>Response</th>
+                                <th>Timestamp</th>
+                                <th>Executed At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${history.map(cmd => `
+                                <tr>
+                                    <td><span class="badge bg-info">${cmd.command}</span></td>
+                                    <td><span class="badge ${cmd.status === 'completed' ? 'bg-success' : 'bg-warning'}">${cmd.status}</span></td>
+                                    <td>${cmd.response}</td>
+                                    <td>${new Date(cmd.timestamp).toLocaleString()}</td>
+                                    <td>${cmd.executed_at ? new Date(cmd.executed_at).toLocaleString() : '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                content.innerHTML = html;
+            }
+            
+            container.style.display = 'block';
+        }
+        
+        // Speed Limit Functions
+        async function setSpeedLimit() {
+            const imei = document.getElementById('speedImei').value;
+            const speedLimit = document.getElementById('speedLimit').value;
+            const setBy = document.getElementById('setBy').value;
+            
+            if (!imei || !speedLimit) {
+                showError('Please enter IMEI and speed limit');
+                return;
+            }
+            
+            showLoading('Setting speed limit...');
+            
+            try {
+                const response = await fetch('/api/speed_limit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ imei, speed_limit_kmh: parseFloat(speedLimit), set_by: setBy })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess(data.message);
+                } else {
+                    showError(data.error || 'Failed to set speed limit');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        async function getCurrentSpeedLimit() {
+            const imei = document.getElementById('speedImei').value;
+            if (!imei) {
+                showError('Please enter a vehicle IMEI');
+                return;
+            }
+            
+            showLoading('Getting current speed limit...');
+            
+            try {
+                const response = await fetch(`/api/speed_limit?imei=${imei}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayCurrentSpeedLimit(data.speed_limit);
+                } else {
+                    showError(data.error || 'Failed to get speed limit');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function displayCurrentSpeedLimit(speedLimitData) {
+            const container = document.getElementById('currentSpeedLimitContainer');
+            const content = document.getElementById('currentSpeedLimit');
+            
+            if (!speedLimitData) {
+                content.innerHTML = '<p>No speed limit set for this vehicle.</p>';
+            } else {
+                content.innerHTML = `
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${speedLimitData.speed_limit_kmh}</div>
+                            <div class="stat-label">Speed Limit (km/h)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${speedLimitData.set_by}</div>
+                            <div class="stat-label">Set By</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${new Date(speedLimitData.set_at).toLocaleString()}</div>
+                            <div class="stat-label">Set At</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.style.display = 'block';
+        }
+        
+        // Positioning Functions
+        async function getPositioningData() {
+            const imei = document.getElementById('positionImei').value;
+            if (!imei) {
+                showError('Please enter a vehicle IMEI');
+                return;
+            }
+            
+            showLoading('Getting positioning data...');
+            
+            try {
+                const response = await fetch(`/api/positioning?imei=${imei}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayPositioningData(data.positioning_data);
+                } else {
+                    showError(data.error || 'Failed to get positioning data');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function displayPositioningData(positioningData) {
+            const container = document.getElementById('positioningDataContainer');
+            const content = document.getElementById('positioningData');
+            
+            if (!positioningData) {
+                content.innerHTML = '<p>No positioning data available for this vehicle.</p>';
+            } else {
+                const html = `
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${positioningData.current_latitude.toFixed(6)}</div>
+                            <div class="stat-label">Current Latitude</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${positioningData.current_longitude.toFixed(6)}</div>
+                            <div class="stat-label">Current Longitude</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${positioningData.last_latitude.toFixed(6)}</div>
+                            <div class="stat-label">Last Latitude</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${positioningData.last_longitude.toFixed(6)}</div>
+                            <div class="stat-label">Last Longitude</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${positioningData.heading || '-'}</div>
+                            <div class="stat-label">Heading</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${positioningData.altitude || '-'}</div>
+                            <div class="stat-label">Altitude</div>
+                        </div>
+                    </div>
+                    <p style="margin-top: 1rem;"><strong>Last Update:</strong> ${new Date(positioningData.timestamp).toLocaleString()}</p>
+                `;
+                content.innerHTML = html;
+            }
+            
+            container.style.display = 'block';
+        }
+        
+        // Alarm Functions
+        async function loadAlarmLogs() {
+            const imei = document.getElementById('alarmImei').value;
+            const limit = document.getElementById('alarmLimit').value || 100;
+            
+            showLoading('Loading alarm logs...');
+            
+            try {
+                const params = new URLSearchParams({ limit });
+                if (imei) params.append('imei', imei);
+                
+                const response = await fetch(`/api/alarms?${params}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayAlarmLogs(data.alarms);
+                } else {
+                    showError(data.error || 'Failed to load alarm logs');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function displayAlarmLogs(alarms) {
+            const container = document.getElementById('alarmLogsContainer');
+            const content = document.getElementById('alarmLogs');
+            
+            if (!alarms || alarms.length === 0) {
+                content.innerHTML = '<p>No alarm logs available.</p>';
+            } else {
+                const html = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>IMEI</th>
+                                <th>Alarm Type</th>
+                                <th>Message</th>
+                                <th>Timestamp</th>
+                                <th>Acknowledged</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${alarms.map(alarm => `
+                                <tr>
+                                    <td>${alarm.imei}</td>
+                                    <td><span class="badge bg-warning">${alarm.alarm_type}</span></td>
+                                    <td>${alarm.message}</td>
+                                    <td>${new Date(alarm.timestamp).toLocaleString()}</td>
+                                    <td>
+                                        ${alarm.acknowledged ? 
+                                            `<span class="badge bg-success">Yes (${alarm.acknowledged_by})</span>` : 
+                                            '<span class="badge bg-danger">No</span>'}
+                                    </td>
+                                    <td>
+                                        ${!alarm.acknowledged ? 
+                                            `<button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="acknowledgeAlarm('${alarm.imei}', ${alarm.id})">
+                                                <i class="fas fa-check"></i> Acknowledge
+                                            </button>` : 
+                                            '-'}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                content.innerHTML = html;
+            }
+            
+            container.style.display = 'block';
+        }
+        
+        async function acknowledgeAlarm(imei, alarmId) {
+            showLoading('Acknowledging alarm...');
+            
+            try {
+                const response = await fetch('/api/alarms/acknowledge', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ imei, alarm_id: alarmId, acknowledged_by: 'dashboard_user' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Alarm acknowledged successfully!');
+                    // Reload alarm logs
+                    loadAlarmLogs();
+                } else {
+                    showError(data.error || 'Failed to acknowledge alarm');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        // Trip Request Functions
+        async function loadTripRequests() {
+            const status = document.getElementById('requestStatus').value;
+            
+            showLoading('Loading trip requests...');
+            
+            try {
+                const params = status ? new URLSearchParams({ status }) : '';
+                const response = await fetch(`/api/trip_requests${params ? '?' + params.toString() : ''}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayTripRequests(data.trip_requests);
+                } else {
+                    showError(data.error || 'Failed to load trip requests');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function displayTripRequests(requests) {
+            const container = document.getElementById('tripRequestsContainer');
+            const content = document.getElementById('tripRequests');
+            
+            if (!requests || requests.length === 0) {
+                content.innerHTML = '<p>No trip requests found.</p>';
+            } else {
+                const html = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Department</th>
+                                <th>Requester</th>
+                                <th>Purpose</th>
+                                <th>Destination</th>
+                                <th>Status</th>
+                                <th>Request Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${requests.map(req => `
+                                <tr>
+                                    <td>${req.id}</td>
+                                    <td>${req.department}</td>
+                                    <td>${req.requester_name}</td>
+                                    <td>${req.purpose}</td>
+                                    <td>${req.destination}</td>
+                                    <td><span class="badge ${getStatusBadgeClass(req.status)}">${req.status}</span></td>
+                                    <td>${new Date(req.request_date).toLocaleString()}</td>
+                                    <td>
+                                        ${req.status === 'pending' ? 
+                                            `<button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="showApproveRequest(${req.id})">
+                                                <i class="fas fa-check"></i> Approve
+                                            </button>` : 
+                                            req.status === 'approved' ? 
+                                                `<span style="color: green;">Approved by ${req.approved_by}</span>` :
+                                                '-'}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                content.innerHTML = html;
+            }
+            
+            container.style.display = 'block';
+        }
+        
+        function getStatusBadgeClass(status) {
+            switch(status) {
+                case 'pending': return 'bg-warning';
+                case 'approved': return 'bg-success';
+                case 'rejected': return 'bg-danger';
+                default: return 'bg-secondary';
+            }
+        }
+        
+        function showCreateTripRequest() {
+            document.getElementById('tripRequestsContainer').style.display = 'none';
+            document.getElementById('createTripRequestContainer').style.display = 'block';
+        }
+        
+        function cancelTripRequest() {
+            document.getElementById('createTripRequestContainer').style.display = 'none';
+            document.getElementById('tripRequestsContainer').style.display = 'block';
+        }
+        
+        async function createTripRequest() {
+            const department = document.getElementById('department').value;
+            const requesterName = document.getElementById('requesterName').value;
+            const purpose = document.getElementById('purpose').value;
+            const destination = document.getElementById('destination').value;
+            
+            if (!department || !requesterName || !purpose || !destination) {
+                showError('Please fill in all fields');
+                return;
+            }
+            
+            showLoading('Creating trip request...');
+            
+            try {
+                const response = await fetch('/api/trip_requests', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ department, requester_name: requesterName, purpose, destination })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Trip request created successfully!');
+                    cancelTripRequest();
+                    loadTripRequests();
+                } else {
+                    showError(data.error || 'Failed to create trip request');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function showApproveRequest(requestId) {
+            const approvedBy = prompt('Enter your name for approval:');
+            const vehicleAssigned = prompt('Enter vehicle IMEI to assign:');
+            
+            if (!approvedBy || !vehicleAssigned) {
+                showError('Both name and vehicle IMEI are required for approval');
+                return;
+            }
+            
+            approveTripRequest(requestId, approvedBy, vehicleAssigned);
+        }
+        
+        async function approveTripRequest(requestId, approvedBy, vehicleAssigned) {
+            showLoading('Approving trip request...');
+            
+            try {
+                const response = await fetch(`/api/trip_requests/${requestId}/approve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ approved_by: approvedBy, vehicle_assigned: vehicleAssigned })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Trip request approved successfully!');
+                    loadTripRequests();
+                } else {
+                    showError(data.error || 'Failed to approve trip request');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function showVehicleManagement() {
+            updateTitle('Vehicle Management');
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-list"></i> Vehicle Fleet</h4>
+                    <div class="form-group">
+                        <label for="vehicleStatus">Filter by Status:</label>
+                        <select id="vehicleStatus" onchange="loadVehicles()">
+                            <option value="">All Vehicles</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="retired">Retired</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="vehicleDepartment">Filter by Department:</label>
+                        <input type="text" id="vehicleDepartment" placeholder="Enter department" onkeyup="loadVehicles()">
+                    </div>
+                    <button class="btn" onclick="loadVehicles()">
+                        <i class="fas fa-search"></i> Load Vehicles
+                    </button>
+                    <button class="btn" onclick="showCreateVehicle()">
+                        <i class="fas fa-plus"></i> Add New Vehicle
+                    </button>
+                    <div id="vehicleStatus"></div>
+                </div>
+                
+                <div id="vehiclesContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-truck"></i> Vehicle List</h4>
+                        <div id="vehiclesList"></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function showCreateVehicle() {
+            updateTitle('Add New Vehicle');
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-plus"></i> Add New Vehicle</h4>
+                    <div class="report-grid">
+                        <div class="form-group">
+                            <label for="newImei">IMEI *</label>
+                            <input type="text" id="newImei" placeholder="Enter IMEI number" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="licensePlate">License Plate</label>
+                            <input type="text" id="licensePlate" placeholder="Enter license plate">
+                        </div>
+                        <div class="form-group">
+                            <label for="make">Make</label>
+                            <input type="text" id="make" placeholder="e.g., Toyota">
+                        </div>
+                        <div class="form-group">
+                            <label for="model">Model</label>
+                            <input type="text" id="model" placeholder="e.g., Camry">
+                        </div>
+                        <div class="form-group">
+                            <label for="year">Year</label>
+                            <input type="number" id="year" placeholder="e.g., 2023" min="1900" max="2030">
+                        </div>
+                        <div class="form-group">
+                            <label for="color">Color</label>
+                            <input type="text" id="color" placeholder="e.g., White">
+                        </div>
+                        <div class="form-group">
+                            <label for="vehicleType">Vehicle Type</label>
+                            <select id="vehicleType">
+                                <option value="">Select Type</option>
+                                <option value="sedan">Sedan</option>
+                                <option value="suv">SUV</option>
+                                <option value="truck">Truck</option>
+                                <option value="van">Van</option>
+                                <option value="motorcycle">Motorcycle</option>
+                                <option value="bus">Bus</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="driverName">Driver Name</label>
+                            <input type="text" id="driverName" placeholder="Enter driver name">
+                        </div>
+                        <div class="form-group">
+                            <label for="driverContact">Driver Contact</label>
+                            <input type="text" id="driverContact" placeholder="Enter contact number">
+                        </div>
+                        <div class="form-group">
+                            <label for="department">Department</label>
+                            <input type="text" id="department" placeholder="Enter department">
+                        </div>
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select id="status">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="retired">Retired</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="fuelCapacity">Fuel Capacity (L)</label>
+                            <input type="number" id="fuelCapacity" placeholder="Enter fuel capacity">
+                        </div>
+                        <div class="form-group">
+                            <label for="currentFuel">Current Fuel (L)</label>
+                            <input type="number" id="currentFuel" placeholder="Enter current fuel level">
+                        </div>
+                        <div class="form-group">
+                            <label for="mileage">Mileage</label>
+                            <input type="number" id="mileage" placeholder="Enter current mileage">
+                        </div>
+                        <div class="form-group">
+                            <label for="lastServiceDate">Last Service Date</label>
+                            <input type="date" id="lastServiceDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="nextServiceDate">Next Service Date</label>
+                            <input type="date" id="nextServiceDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="insuranceExpiry">Insurance Expiry</label>
+                            <input type="date" id="insuranceExpiry">
+                        </div>
+                        <div class="form-group">
+                            <label for="registrationExpiry">Registration Expiry</label>
+                            <input type="date" id="registrationExpiry">
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn" onclick="createVehicle()">
+                            <i class="fas fa-save"></i> Save Vehicle
+                        </button>
+                        <button class="btn btn-secondary" onclick="showVehicleManagement()">
+                            <i class="fas fa-arrow-left"></i> Back to List
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function showVehicleStatistics() {
+            updateTitle('Vehicle Statistics');
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-chart-pie"></i> Fleet Statistics</h4>
+                    <button class="btn" onclick="loadVehicleStatistics()">
+                        <i class="fas fa-refresh"></i> Load Statistics
+                    </button>
+                    <div id="statisticsStatus"></div>
+                </div>
+                
+                <div id="statisticsContainer" style="display: none;">
+                    <div class="report-card">
+                        <h4><i class="fas fa-chart-bar"></i> Overview</h4>
+                        <div id="statisticsOverview"></div>
+                    </div>
+                    
+                    <div class="report-card">
+                        <h4><i class="fas fa-chart-line"></i> Status Breakdown</h4>
+                        <div id="statusBreakdown"></div>
+                    </div>
+                    
+                    <div class="report-card">
+                        <h4><i class="fas fa-building"></i> Department Breakdown</h4>
+                        <div id="departmentBreakdown"></div>
+                    </div>
+                    
+                    <div class="report-card">
+                        <h4><i class="fas fa-car"></i> Vehicle Type Breakdown</h4>
+                        <div id="typeBreakdown"></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        // Vehicle Management Functions
+        async function loadVehicles() {
+            const status = document.getElementById('vehicleStatus').value;
+            const department = document.getElementById('vehicleDepartment').value;
+            
+            showLoading('Loading vehicles...');
+            
+            try {
+                const params = new URLSearchParams();
+                if (status) params.append('status', status);
+                if (department) params.append('department', department);
+                
+                const response = await fetch(`/api/vehicles?${params}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayVehicles(data.vehicles);
+                } else {
+                    showError(data.error || 'Failed to load vehicles');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function displayVehicles(vehicles) {
+            const container = document.getElementById('vehiclesContainer');
+            const content = document.getElementById('vehiclesList');
+            
+            if (!vehicles || vehicles.length === 0) {
+                content.innerHTML = '<p>No vehicles found.</p>';
+            } else {
+                const html = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>IMEI</th>
+                                <th>License Plate</th>
+                                <th>Make/Model</th>
+                                <th>Driver</th>
+                                <th>Department</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${vehicles.map(vehicle => `
+                                <tr>
+                                    <td>${vehicle.imei}</td>
+                                    <td>${vehicle.license_plate || '-'}</td>
+                                    <td>${vehicle.make || ''} ${vehicle.model || ''}</td>
+                                    <td>${vehicle.driver_name || '-'}</td>
+                                    <td>${vehicle.department || '-'}</td>
+                                    <td><span class="badge ${getStatusBadgeClass(vehicle.status)}">${vehicle.status}</span></td>
+                                    <td>
+                                        <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewVehicle(${vehicle.id})">
+                                            <i class="fas fa-eye"></i> View
+                                        </button>
+                                        <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editVehicle(${vehicle.id})">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </button>
+                                        <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background: #dc3545;" onclick="deleteVehicle(${vehicle.id})">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                content.innerHTML = html;
+            }
+            
+            container.style.display = 'block';
+        }
+        
+        async function createVehicle() {
+            const vehicleData = {
+                imei: document.getElementById('newImei').value,
+                license_plate: document.getElementById('licensePlate').value,
+                make: document.getElementById('make').value,
+                model: document.getElementById('model').value,
+                year: parseInt(document.getElementById('year').value) || null,
+                color: document.getElementById('color').value,
+                vehicle_type: document.getElementById('vehicleType').value,
+                driver_name: document.getElementById('driverName').value,
+                driver_contact: document.getElementById('driverContact').value,
+                department: document.getElementById('department').value,
+                status: document.getElementById('status').value,
+                fuel_capacity: parseFloat(document.getElementById('fuelCapacity').value) || null,
+                current_fuel: parseFloat(document.getElementById('currentFuel').value) || 0,
+                mileage: parseFloat(document.getElementById('mileage').value) || 0,
+                last_service_date: document.getElementById('lastServiceDate').value,
+                next_service_date: document.getElementById('nextServiceDate').value,
+                insurance_expiry: document.getElementById('insuranceExpiry').value,
+                registration_expiry: document.getElementById('registrationExpiry').value
+            };
+            
+            if (!vehicleData.imei) {
+                showError('IMEI is required');
+                return;
+            }
+            
+            showLoading('Creating vehicle...');
+            
+            try {
+                const response = await fetch('/api/vehicles', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(vehicleData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Vehicle created successfully!');
+                    showVehicleManagement();
+                } else {
+                    showError(data.error || 'Failed to create vehicle');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        async function viewVehicle(vehicleId) {
+            showLoading('Loading vehicle details...');
+            
+            try {
+                const response = await fetch(`/api/vehicles/${vehicleId}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayVehicleDetails(data.vehicle);
+                } else {
+                    showError(data.error || 'Failed to load vehicle');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function displayVehicleDetails(vehicle) {
+            const html = `
+                <div class="report-card">
+                    <h4><i class="fas fa-info-circle"></i> Vehicle Details</h4>
+                    <div class="report-grid">
+                        <div class="stat-card">
+                            <div class="stat-value">${vehicle.imei}</div>
+                            <div class="stat-label">IMEI</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${vehicle.license_plate || '-'}</div>
+                            <div class="stat-label">License Plate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${vehicle.make || ''} ${vehicle.model || ''}</div>
+                            <div class="stat-label">Make/Model</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${vehicle.year || '-'}</div>
+                            <div class="stat-label">Year</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${vehicle.driver_name || '-'}</div>
+                            <div class="stat-label">Driver</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${vehicle.department || '-'}</div>
+                            <div class="stat-label">Department</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value"><span class="badge ${getStatusBadgeClass(vehicle.status)}">${vehicle.status}</span></div>
+                            <div class="stat-label">Status</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${vehicle.mileage || 0}</div>
+                            <div class="stat-label">Mileage</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="showVehicleManagement()">
+                            <i class="fas fa-arrow-left"></i> Back to List
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function editVehicle(vehicleId) {
+            // Load vehicle data and show edit form
+            viewVehicle(vehicleId);
+            // TODO: Implement edit form
+        }
+        
+        async function deleteVehicle(vehicleId) {
+            if (!confirm('Are you sure you want to delete this vehicle?')) {
+                return;
+            }
+            
+            showLoading('Deleting vehicle...');
+            
+            try {
+                const response = await fetch(`/api/vehicles/${vehicleId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showSuccess('Vehicle deleted successfully!');
+                    loadVehicles();
+                } else {
+                    showError(data.error || 'Failed to delete vehicle');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        async function loadVehicleStatistics() {
+            showLoading('Loading vehicle statistics...');
+            
+            try {
+                const response = await fetch('/api/vehicles/statistics');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayVehicleStatistics(data.statistics);
+                } else {
+                    showError(data.error || 'Failed to load statistics');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        function displayVehicleStatistics(stats) {
+            const container = document.getElementById('statisticsContainer');
+            
+            // Overview
+            const overviewHtml = `
+                <div class="report-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.total_vehicles}</div>
+                        <div class="stat-label">Total Vehicles</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.status_counts.active || 0}</div>
+                        <div class="stat-label">Active Vehicles</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.status_counts.maintenance || 0}</div>
+                        <div class="stat-label">In Maintenance</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${Object.keys(stats.department_counts).length}</div>
+                        <div class="stat-label">Departments</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('statisticsOverview').innerHTML = overviewHtml;
+            
+            // Status breakdown
+            const statusHtml = `
+                <div class="report-grid">
+                    ${Object.entries(stats.status_counts).map(([status, count]) => `
+                        <div class="stat-card">
+                            <div class="stat-value">${count}</div>
+                            <div class="stat-label">${status.charAt(0).toUpperCase() + status.slice(1)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            document.getElementById('statusBreakdown').innerHTML = statusHtml;
+            
+            // Department breakdown
+            const deptHtml = `
+                <div class="report-grid">
+                    ${Object.entries(stats.department_counts).map(([dept, count]) => `
+                        <div class="stat-card">
+                            <div class="stat-value">${count}</div>
+                            <div class="stat-label">${dept}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            document.getElementById('departmentBreakdown').innerHTML = deptHtml;
+            
+            // Vehicle type breakdown
+            const typeHtml = `
+                <div class="report-grid">
+                    ${Object.entries(stats.vehicle_type_counts).map(([type, count]) => `
+                        <div class="stat-card">
+                            <div class="stat-value">${count}</div>
+                            <div class="stat-label">${type}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            document.getElementById('typeBreakdown').innerHTML = typeHtml;
+            
+            container.style.display = 'block';
+        }
+        
         function showLiveMap() {
             updateTitle('Live Vehicle Tracking');
             const content = `
@@ -1038,6 +2285,10 @@
                 updateMarkers();
                 setInterval(updateMarkers, 5000);
             }, 100);
+        }
+        
+        function showSuccess(message) {
+            document.getElementById('reportStatus').innerHTML = `<div class="success"><i class="fas fa-check-circle"></i> ${message}</div>`;
         }
         
         function initializeMap() {

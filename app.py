@@ -252,6 +252,520 @@ def get_trip_summary(imei, start_date=None, end_date=None):
     
     return trips
 
+# Engine control functions
+def send_engine_command(imei, command, user='system'):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    timestamp = datetime.datetime.utcnow().isoformat()
+    
+    c.execute('''
+        INSERT INTO engine_control (imei, command, timestamp, status)
+        VALUES (?, ?, ?, 'pending')
+    ''', (imei, command, timestamp))
+    
+    conn.commit()
+    command_id = c.lastrowid
+    conn.close()
+    
+    # In a real implementation, this would send the command to the vehicle
+    # For now, we'll simulate the response
+    simulate_engine_response(command_id, imei, command)
+    
+    return command_id
+
+def simulate_engine_response(command_id, imei, command):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    # Simulate processing delay
+    import time
+    time.sleep(1)
+    
+    # Simulate response
+    if command == 'status':
+        response = 'Engine is running'  # In real implementation, would query vehicle
+        status = 'completed'
+    elif command == 'cut':
+        response = 'Engine cut command sent successfully'
+        status = 'completed'
+    elif command == 'start':
+        response = 'Engine start command sent successfully'
+        status = 'completed'
+    else:
+        response = 'Unknown command'
+        status = 'failed'
+    
+    executed_at = datetime.datetime.utcnow().isoformat()
+    
+    c.execute('''
+        UPDATE engine_control 
+        SET status = ?, response = ?, executed_at = ?
+        WHERE id = ?
+    ''', (status, response, executed_at, command_id))
+    
+    conn.commit()
+    conn.close()
+
+def get_engine_status(imei):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT command, status, response, timestamp, executed_at
+        FROM engine_control 
+        WHERE imei = ? 
+        ORDER BY timestamp DESC 
+        LIMIT 10
+    ''', (imei,))
+    
+    rows = c.fetchall()
+    conn.close()
+    
+    return [{
+        'command': row[0],
+        'status': row[1],
+        'response': row[2],
+        'timestamp': row[3],
+        'executed_at': row[4]
+    } for row in rows]
+
+def set_speed_limit(imei, speed_limit_kmh, set_by='system'):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    timestamp = datetime.datetime.utcnow().isoformat()
+    
+    # Deactivate previous speed limits for this vehicle
+    c.execute('''
+        UPDATE speed_limits 
+        SET is_active = 0 
+        WHERE imei = ?
+    ''', (imei,))
+    
+    # Insert new speed limit
+    c.execute('''
+        INSERT INTO speed_limits (imei, speed_limit_kmh, set_by, set_at, is_active)
+        VALUES (?, ?, ?, ?, 1)
+    ''', (imei, speed_limit_kmh, set_by, timestamp))
+    
+    conn.commit()
+    conn.close()
+    
+    return True
+
+def get_speed_limit(imei):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT speed_limit_kmh, set_by, set_at
+        FROM speed_limits 
+        WHERE imei = ? AND is_active = 1
+        ORDER BY set_at DESC 
+        LIMIT 1
+    ''', (imei,))
+    
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        return {
+            'speed_limit_kmh': result[0],
+            'set_by': result[1],
+            'set_at': result[2]
+        }
+    return None
+
+def get_positioning_data(imei):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT current_latitude, current_longitude, last_latitude, last_longitude, timestamp, heading, altitude
+        FROM positioning_data 
+        WHERE imei = ? 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+    ''', (imei,))
+    
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        return {
+            'current_latitude': result[0],
+            'current_longitude': result[1],
+            'last_latitude': result[2],
+            'last_longitude': result[3],
+            'timestamp': result[4],
+            'heading': result[5],
+            'altitude': result[6]
+        }
+    return None
+
+def log_alarm(imei, alarm_type, message):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    timestamp = datetime.datetime.utcnow().isoformat()
+    
+    c.execute('''
+        INSERT INTO alarm_logs (imei, alarm_type, message, timestamp)
+        VALUES (?, ?, ?, ?)
+    ''', (imei, alarm_type, message, timestamp))
+    
+    conn.commit()
+    conn.close()
+    
+    return True
+
+def get_alarm_logs(imei=None, limit=100):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    if imei:
+        c.execute('''
+            SELECT imei, alarm_type, message, timestamp, acknowledged, acknowledged_by, acknowledged_at
+            FROM alarm_logs 
+            WHERE imei = ?
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        ''', (imei, limit))
+    else:
+        c.execute('''
+            SELECT imei, alarm_type, message, timestamp, acknowledged, acknowledged_by, acknowledged_at
+            FROM alarm_logs 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        ''', (limit,))
+    
+    rows = c.fetchall()
+    conn.close()
+    
+    return [{
+        'imei': row[0],
+        'alarm_type': row[1],
+        'message': row[2],
+        'timestamp': row[3],
+        'acknowledged': bool(row[4]),
+        'acknowledged_by': row[5],
+        'acknowledged_at': row[6]
+    } for row in rows]
+
+def create_trip_request(department, requester_name, purpose, destination):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    request_date = datetime.datetime.utcnow().isoformat()
+    
+    c.execute('''
+        INSERT INTO trip_requests (department, requester_name, request_date, purpose, destination)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (department, requester_name, request_date, purpose, destination))
+    
+    conn.commit()
+    request_id = c.lastrowid
+    conn.close()
+    
+    return request_id
+
+def get_trip_requests(status=None):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    if status:
+        c.execute('''
+            SELECT id, department, requester_name, request_date, purpose, destination, status, approved_by, approved_at, vehicle_assigned
+            FROM trip_requests 
+            WHERE status = ?
+            ORDER BY request_date DESC
+        ''', (status,))
+    else:
+        c.execute('''
+            SELECT id, department, requester_name, request_date, purpose, destination, status, approved_by, approved_at, vehicle_assigned
+            FROM trip_requests 
+            ORDER BY request_date DESC
+        ''')
+    
+    rows = c.fetchall()
+    conn.close()
+    
+    return [{
+        'id': row[0],
+        'department': row[1],
+        'requester_name': row[2],
+        'request_date': row[3],
+        'purpose': row[4],
+        'destination': row[5],
+        'status': row[6],
+        'approved_by': row[7],
+        'approved_at': row[8],
+        'vehicle_assigned': row[9]
+    } for row in rows]
+
+# Vehicle CRUD functions
+def create_vehicle(vehicle_data):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    try:
+        c.execute('''
+            INSERT INTO vehicles (
+                imei, license_plate, make, model, year, color, vehicle_type,
+                driver_name, driver_contact, department, status, fuel_capacity,
+                current_fuel, mileage, last_service_date, next_service_date,
+                insurance_expiry, registration_expiry
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            vehicle_data['imei'],
+            vehicle_data.get('license_plate'),
+            vehicle_data.get('make'),
+            vehicle_data.get('model'),
+            vehicle_data.get('year'),
+            vehicle_data.get('color'),
+            vehicle_data.get('vehicle_type'),
+            vehicle_data.get('driver_name'),
+            vehicle_data.get('driver_contact'),
+            vehicle_data.get('department'),
+            vehicle_data.get('status', 'active'),
+            vehicle_data.get('fuel_capacity'),
+            vehicle_data.get('current_fuel', 0),
+            vehicle_data.get('mileage', 0),
+            vehicle_data.get('last_service_date'),
+            vehicle_data.get('next_service_date'),
+            vehicle_data.get('insurance_expiry'),
+            vehicle_data.get('registration_expiry')
+        ))
+        
+        conn.commit()
+        vehicle_id = c.lastrowid
+        return vehicle_id
+    except sqlite3.IntegrityError as e:
+        conn.rollback()
+        if 'UNIQUE constraint failed: vehicles.imei' in str(e):
+            raise ValueError('A vehicle with this IMEI already exists')
+        else:
+            raise e
+    finally:
+        conn.close()
+
+def get_all_vehicles(status=None, department=None):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    query = '''
+        SELECT id, imei, license_plate, make, model, year, color, vehicle_type,
+               driver_name, driver_contact, department, status, fuel_capacity,
+               current_fuel, mileage, last_service_date, next_service_date,
+               insurance_expiry, registration_expiry, created_at, updated_at
+        FROM vehicles
+        WHERE 1=1
+    '''
+    params = []
+    
+    if status:
+        query += ' AND status = ?'
+        params.append(status)
+    
+    if department:
+        query += ' AND department = ?'
+        params.append(department)
+    
+    query += ' ORDER BY created_at DESC'
+    
+    c.execute(query, params)
+    rows = c.fetchall()
+    conn.close()
+    
+    return [{
+        'id': row[0],
+        'imei': row[1],
+        'license_plate': row[2],
+        'make': row[3],
+        'model': row[4],
+        'year': row[5],
+        'color': row[6],
+        'vehicle_type': row[7],
+        'driver_name': row[8],
+        'driver_contact': row[9],
+        'department': row[10],
+        'status': row[11],
+        'fuel_capacity': row[12],
+        'current_fuel': row[13],
+        'mileage': row[14],
+        'last_service_date': row[15],
+        'next_service_date': row[16],
+        'insurance_expiry': row[17],
+        'registration_expiry': row[18],
+        'created_at': row[19],
+        'updated_at': row[20]
+    } for row in rows]
+
+def get_vehicle_by_id(vehicle_id):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT id, imei, license_plate, make, model, year, color, vehicle_type,
+               driver_name, driver_contact, department, status, fuel_capacity,
+               current_fuel, mileage, last_service_date, next_service_date,
+               insurance_expiry, registration_expiry, created_at, updated_at
+        FROM vehicles WHERE id = ?
+    ''', (vehicle_id,))
+    
+    row = c.fetchone()
+    conn.close()
+    
+    if row:
+        return {
+            'id': row[0],
+            'imei': row[1],
+            'license_plate': row[2],
+            'make': row[3],
+            'model': row[4],
+            'year': row[5],
+            'color': row[6],
+            'vehicle_type': row[7],
+            'driver_name': row[8],
+            'driver_contact': row[9],
+            'department': row[10],
+            'status': row[11],
+            'fuel_capacity': row[12],
+            'current_fuel': row[13],
+            'mileage': row[14],
+            'last_service_date': row[15],
+            'next_service_date': row[16],
+            'insurance_expiry': row[17],
+            'registration_expiry': row[18],
+            'created_at': row[19],
+            'updated_at': row[20]
+        }
+    return None
+
+def get_vehicle_by_imei(imei):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT id, imei, license_plate, make, model, year, color, vehicle_type,
+               driver_name, driver_contact, department, status, fuel_capacity,
+               current_fuel, mileage, last_service_date, next_service_date,
+               insurance_expiry, registration_expiry, created_at, updated_at
+        FROM vehicles WHERE imei = ?
+    ''', (imei,))
+    
+    row = c.fetchone()
+    conn.close()
+    
+    if row:
+        return {
+            'id': row[0],
+            'imei': row[1],
+            'license_plate': row[2],
+            'make': row[3],
+            'model': row[4],
+            'year': row[5],
+            'color': row[6],
+            'vehicle_type': row[7],
+            'driver_name': row[8],
+            'driver_contact': row[9],
+            'department': row[10],
+            'status': row[11],
+            'fuel_capacity': row[12],
+            'current_fuel': row[13],
+            'mileage': row[14],
+            'last_service_date': row[15],
+            'next_service_date': row[16],
+            'insurance_expiry': row[17],
+            'registration_expiry': row[18],
+            'created_at': row[19],
+            'updated_at': row[20]
+        }
+    return None
+
+def update_vehicle(vehicle_id, vehicle_data):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    # Build dynamic update query
+    update_fields = []
+    params = []
+    
+    for field, value in vehicle_data.items():
+        if field != 'id' and field != 'imei':  # Don't update ID or IMEI
+            update_fields.append(f'{field} = ?')
+            params.append(value)
+    
+    if not update_fields:
+        return False  # No fields to update
+    
+    # Add updated timestamp
+    update_fields.append('updated_at = ?')
+    params.append(datetime.datetime.utcnow().isoformat())
+    
+    # Add vehicle_id for WHERE clause
+    params.append(vehicle_id)
+    
+    query = f'UPDATE vehicles SET {', '.join(update_fields)} WHERE id = ?'
+    
+    try:
+        c.execute(query, params)
+        conn.commit()
+        return c.rowcount > 0
+    finally:
+        conn.close()
+
+def delete_vehicle(vehicle_id):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    try:
+        c.execute('DELETE FROM vehicles WHERE id = ?', (vehicle_id,))
+        conn.commit()
+        return c.rowcount > 0
+    finally:
+        conn.close()
+
+def get_vehicle_statistics():
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    # Get total vehicles by status
+    c.execute('''
+        SELECT status, COUNT(*) as count
+        FROM vehicles
+        GROUP BY status
+    ''')
+    status_counts = dict(c.fetchall())
+    
+    # Get vehicles by department
+    c.execute('''
+        SELECT department, COUNT(*) as count
+        FROM vehicles
+        WHERE department IS NOT NULL
+        GROUP BY department
+    ''')
+    dept_counts = dict(c.fetchall())
+    
+    # Get vehicles by type
+    c.execute('''
+        SELECT vehicle_type, COUNT(*) as count
+        FROM vehicles
+        WHERE vehicle_type IS NOT NULL
+        GROUP BY vehicle_type
+    ''')
+    type_counts = dict(c.fetchall())
+    
+    conn.close()
+    
+    return {
+        'status_counts': status_counts,
+        'department_counts': dept_counts,
+        'vehicle_type_counts': type_counts,
+        'total_vehicles': sum(status_counts.values())
+    }
+
 @app.route('/')
 def index():
     return render_template('dashboard.html')
@@ -449,6 +963,343 @@ def temperature_report():
         'min_temperature': min_temp,
         'max_temperature': max_temp
     })
+
+# Engine Control APIs
+@app.route('/api/engine/cut', methods=['POST'])
+def cut_engine():
+    data = request.get_json()
+    imei = data.get('imei')
+    user = data.get('user', 'system')
+    
+    if not imei:
+        return jsonify({'error': 'IMEI parameter is required'}), 400
+    
+    command_id = send_engine_command(imei, 'cut', user)
+    
+    return jsonify({
+        'success': True,
+        'command_id': command_id,
+        'message': 'Engine cut command sent successfully'
+    })
+
+@app.route('/api/engine/start', methods=['POST'])
+def start_engine():
+    data = request.get_json()
+    imei = data.get('imei')
+    user = data.get('user', 'system')
+    
+    if not imei:
+        return jsonify({'error': 'IMEI parameter is required'}), 400
+    
+    command_id = send_engine_command(imei, 'start', user)
+    
+    return jsonify({
+        'success': True,
+        'command_id': command_id,
+        'message': 'Engine start command sent successfully'
+    })
+
+@app.route('/api/engine/status')
+def engine_status():
+    imei = request.args.get('imei')
+    
+    if not imei:
+        return jsonify({'error': 'IMEI parameter is required'}), 400
+    
+    # Send status command
+    command_id = send_engine_command(imei, 'status')
+    
+    # Get recent engine commands
+    engine_history = get_engine_status(imei)
+    
+    return jsonify({
+        'imei': imei,
+        'command_id': command_id,
+        'engine_history': engine_history
+    })
+
+# Speed Limit API
+@app.route('/api/speed_limit', methods=['POST'])
+def set_speed_limit_api():
+    data = request.get_json()
+    imei = data.get('imei')
+    speed_limit = data.get('speed_limit_kmh')
+    set_by = data.get('set_by', 'system')
+    
+    if not imei or speed_limit is None:
+        return jsonify({'error': 'IMEI and speed_limit parameters are required'}), 400
+    
+    success = set_speed_limit(imei, speed_limit, set_by)
+    
+    if success:
+        return jsonify({
+            'success': True,
+            'message': f'Speed limit set to {speed_limit} km/h for vehicle {imei}'
+        })
+    else:
+        return jsonify({'error': 'Failed to set speed limit'}), 500
+
+@app.route('/api/speed_limit')
+def get_speed_limit_api():
+    imei = request.args.get('imei')
+    
+    if not imei:
+        return jsonify({'error': 'IMEI parameter is required'}), 400
+    
+    speed_limit_data = get_speed_limit(imei)
+    
+    return jsonify({
+        'imei': imei,
+        'speed_limit': speed_limit_data
+    })
+
+# Positioning API
+@app.route('/api/positioning')
+def positioning_api():
+    imei = request.args.get('imei')
+    
+    if not imei:
+        return jsonify({'error': 'IMEI parameter is required'}), 400
+    
+    positioning_data = get_positioning_data(imei)
+    
+    if positioning_data:
+        return jsonify({
+            'imei': imei,
+            'positioning_data': positioning_data,
+            'success': True
+        })
+    else:
+        return jsonify({
+            'imei': imei,
+            'positioning_data': None,
+            'success': False,
+            'message': 'No positioning data available for this vehicle'
+        })
+
+# Alarm APIs
+@app.route('/api/alarms')
+def get_alarms():
+    imei = request.args.get('imei')
+    limit = request.args.get('limit', 100)
+    
+    try:
+        limit = int(limit)
+    except ValueError:
+        limit = 100
+    
+    alarm_logs = get_alarm_logs(imei, limit)
+    
+    return jsonify({
+        'imei': imei,
+        'alarms': alarm_logs,
+        'total_count': len(alarm_logs)
+    })
+
+@app.route('/api/alarms/acknowledge', methods=['POST'])
+def acknowledge_alarm():
+    data = request.get_json()
+    imei = data.get('imei')
+    alarm_id = data.get('alarm_id')
+    acknowledged_by = data.get('acknowledged_by', 'system')
+    
+    if not imei or not alarm_id:
+        return jsonify({'error': 'IMEI and alarm_id parameters are required'}), 400
+    
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    acknowledged_at = datetime.datetime.utcnow().isoformat()
+    
+    c.execute('''
+        UPDATE alarm_logs 
+        SET acknowledged = 1, acknowledged_by = ?, acknowledged_at = ?
+        WHERE id = ? AND imei = ?
+    ''', (acknowledged_by, acknowledged_at, alarm_id, imei))
+    
+    conn.commit()
+    changes = conn.total_changes
+    conn.close()
+    
+    if changes > 0:
+        return jsonify({
+            'success': True,
+            'message': 'Alarm acknowledged successfully'
+        })
+    else:
+        return jsonify({'error': 'Alarm not found or already acknowledged'}), 404
+
+# Trip Request APIs
+@app.route('/api/trip_requests', methods=['POST'])
+def create_trip_request_api():
+    data = request.get_json()
+    department = data.get('department')
+    requester_name = data.get('requester_name')
+    purpose = data.get('purpose')
+    destination = data.get('destination')
+    
+    if not all([department, requester_name, purpose, destination]):
+        return jsonify({'error': 'All fields (department, requester_name, purpose, destination) are required'}), 400
+    
+    request_id = create_trip_request(department, requester_name, purpose, destination)
+    
+    return jsonify({
+        'success': True,
+        'request_id': request_id,
+        'message': 'Trip request created successfully'
+    })
+
+@app.route('/api/trip_requests')
+def get_trip_requests_api():
+    status = request.args.get('status')
+    
+    trip_requests = get_trip_requests(status)
+    
+    return jsonify({
+        'trip_requests': trip_requests,
+        'total_count': len(trip_requests),
+        'status_filter': status
+    })
+
+@app.route('/api/trip_requests/<int:request_id>/approve', methods=['POST'])
+def approve_trip_request(request_id):
+    data = request.get_json()
+    approved_by = data.get('approved_by', 'system')
+    vehicle_assigned = data.get('vehicle_assigned')
+    
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    approved_at = datetime.datetime.utcnow().isoformat()
+    
+    c.execute('''
+        UPDATE trip_requests 
+        SET status = 'approved', approved_by = ?, approved_at = ?, vehicle_assigned = ?
+        WHERE id = ?
+    ''', (approved_by, approved_at, vehicle_assigned, request_id))
+    
+    conn.commit()
+    changes = conn.total_changes
+    conn.close()
+    
+    if changes > 0:
+        return jsonify({
+            'success': True,
+            'message': 'Trip request approved successfully'
+        })
+    else:
+        return jsonify({'error': 'Trip request not found'}), 404
+
+# Vehicle CRUD APIs
+@app.route('/api/vehicles', methods=['POST'])
+def create_vehicle_api():
+    data = request.get_json()
+    
+    # Validate required field
+    if not data.get('imei'):
+        return jsonify({'error': 'IMEI is required'}), 400
+    
+    try:
+        vehicle_id = create_vehicle(data)
+        return jsonify({
+            'success': True,
+            'vehicle_id': vehicle_id,
+            'message': 'Vehicle created successfully'
+        })
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': 'Failed to create vehicle: ' + str(e)}), 500
+
+@app.route('/api/vehicles')
+def get_vehicles_api():
+    status = request.args.get('status')
+    department = request.args.get('department')
+    
+    try:
+        vehicles = get_all_vehicles(status, department)
+        return jsonify({
+            'vehicles': vehicles,
+            'total_count': len(vehicles),
+            'filters': {
+                'status': status,
+                'department': department
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch vehicles: ' + str(e)}), 500
+
+@app.route('/api/vehicles/<int:vehicle_id>')
+def get_vehicle_api(vehicle_id):
+    try:
+        vehicle = get_vehicle_by_id(vehicle_id)
+        if vehicle:
+            return jsonify({
+                'vehicle': vehicle,
+                'success': True
+            })
+        else:
+            return jsonify({'error': 'Vehicle not found'}), 404
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch vehicle: ' + str(e)}), 500
+
+@app.route('/api/vehicles/imei/<imei>')
+def get_vehicle_by_imei_api(imei):
+    try:
+        vehicle = get_vehicle_by_imei(imei)
+        if vehicle:
+            return jsonify({
+                'vehicle': vehicle,
+                'success': True
+            })
+        else:
+            return jsonify({'error': 'Vehicle not found'}), 404
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch vehicle: ' + str(e)}), 500
+
+@app.route('/api/vehicles/<int:vehicle_id>', methods=['PUT'])
+def update_vehicle_api(vehicle_id):
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data provided for update'}), 400
+    
+    try:
+        success = update_vehicle(vehicle_id, data)
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Vehicle updated successfully'
+            })
+        else:
+            return jsonify({'error': 'Vehicle not found or no changes made'}), 404
+    except Exception as e:
+        return jsonify({'error': 'Failed to update vehicle: ' + str(e)}), 500
+
+@app.route('/api/vehicles/<int:vehicle_id>', methods=['DELETE'])
+def delete_vehicle_api(vehicle_id):
+    try:
+        success = delete_vehicle(vehicle_id)
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Vehicle deleted successfully'
+            })
+        else:
+            return jsonify({'error': 'Vehicle not found'}), 404
+    except Exception as e:
+        return jsonify({'error': 'Failed to delete vehicle: ' + str(e)}), 500
+
+@app.route('/api/vehicles/statistics')
+def get_vehicle_statistics_api():
+    try:
+        stats = get_vehicle_statistics()
+        return jsonify({
+            'statistics': stats,
+            'success': True
+        })
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch vehicle statistics: ' + str(e)}), 500
 
 if __name__ == '__main__':
     # Start TCP listener in a background thread
