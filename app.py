@@ -397,6 +397,7 @@ def get_speed_limit(vehicle_id):
             'set_at': set_at
         }
     
+    # Return None when no active speed limit found
     return None
 
 def get_positioning_data(vehicle_id):
@@ -451,33 +452,41 @@ def get_alarm_logs(vehicle_id=None, limit=100):
     
     if vehicle_id:
         c.execute('''
-            SELECT id, vehicle_id, alarm_type, message, timestamp, acknowledged, acknowledged_by, acknowledged_at
-            FROM alarm_logs 
-            WHERE vehicle_id = ?
-            ORDER BY timestamp DESC 
+            SELECT a.id, a.vehicle_id, a.alarm_type, a.message, a.timestamp, a.acknowledged, a.acknowledged_by, a.acknowledged_at,
+                   v.license_plate, v.imei
+            FROM alarm_logs a
+            JOIN vehicles v ON a.vehicle_id = v.id
+            WHERE a.vehicle_id = ?
+            ORDER BY a.timestamp DESC 
             LIMIT ?
         ''', (vehicle_id, limit))
     else:
         c.execute('''
-            SELECT id, vehicle_id, alarm_type, message, timestamp, acknowledged, acknowledged_by, acknowledged_at
-            FROM alarm_logs 
-            ORDER BY timestamp DESC 
+            SELECT a.id, a.vehicle_id, a.alarm_type, a.message, a.timestamp, a.acknowledged, a.acknowledged_by, a.acknowledged_at,
+                   v.license_plate, v.imei
+            FROM alarm_logs a
+            JOIN vehicles v ON a.vehicle_id = v.id
+            ORDER BY a.timestamp DESC 
             LIMIT ?
         ''', (limit,))
     
-    rows = c.fetchall()
-    conn.close()
+    alarms = []
+    for row in c.fetchall():
+        alarms.append({
+            'id': row[0],
+            'vehicle_id': row[1],
+            'alarm_type': row[2],
+            'message': row[3],
+            'timestamp': row[4],
+            'acknowledged': row[5],
+            'acknowledged_by': row[6],
+            'acknowledged_at': row[7],
+            'license_plate': row[8],
+            'imei': row[9]
+        })
     
-    return [{
-        'id': row[0],
-        'vehicle_id': row[1],
-        'alarm_type': row[2],
-        'message': row[3],
-        'timestamp': row[4],
-        'acknowledged': bool(row[5]),
-        'acknowledged_by': row[6],
-        'acknowledged_at': row[7]
-    } for row in rows]
+    conn.close()
+    return alarms
 
 def create_trip_request(department, requester_name, purpose, destination):
     conn = sqlite3.connect(DB)
@@ -1115,7 +1124,15 @@ def get_speed_limit_api():
     
     try:
         speed_limit_data = get_speed_limit(vehicle['id'])
-        return jsonify(speed_limit_data)
+        if speed_limit_data:
+            return jsonify(speed_limit_data)
+        else:
+            return jsonify({
+                'speed_limit': None,
+                'set_by': None,
+                'set_at': None,
+                'message': 'No speed limit set for this vehicle'
+            })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1317,4 +1334,4 @@ if __name__ == '__main__':
     t.start()
 
     # Start Flask app
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)

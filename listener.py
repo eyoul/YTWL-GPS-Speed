@@ -114,6 +114,16 @@ def init_db():
         )
     ''')
     
+    # Vehicle idle status tracking table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS vehicle_idle_status (
+            vehicle_id INTEGER PRIMARY KEY,
+            idle_status TEXT,
+            idle_start_time TEXT,
+            last_update TEXT
+        )
+    ''')
+    
     # Alarm logs table
     c.execute('''
         CREATE TABLE IF NOT EXISTS alarm_logs (
@@ -122,6 +132,8 @@ def init_db():
             alarm_type TEXT,
             message TEXT,
             timestamp TEXT,
+            severity TEXT DEFAULT 'info',
+            category TEXT DEFAULT 'general',
             acknowledged INTEGER DEFAULT 0,
             acknowledged_by TEXT,
             acknowledged_at TEXT,
@@ -322,8 +334,137 @@ def save_point(vehicle_id, ts_iso, lat, lon, speed):
     conn_db.commit()
     conn_db.close()
     
+    # Check for speed limit violations
+    check_speed_limit_violation(vehicle_id, speed, ts_iso)
+    
+    # Check for excessive idling
+    check_idle_time_violation(vehicle_id, speed, ts_iso)
+    
     # Also update positioning data
     update_positioning_data(vehicle_id, lat, lon)
+
+def check_idle_time_violation(vehicle_id, current_speed, timestamp):
+    """Check if vehicle has been idle for too long"""
+    # Define idle threshold (speed <= 5 km/h considered idle)
+    IDLE_SPEED_THRESHOLD = 5.0
+    # Define excessive idle time in minutes
+    EXCESSIVE_IDLE_MINUTES = 15
+    
+    if current_speed > IDLE_SPEED_THRESHOLD:
+        # Vehicle is moving, reset idle tracking
+        update_vehicle_idle_status(vehicle_id, 'moving', timestamp)
+        return
+    
+    # Vehicle is idle, check how long it's been idle
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    # Get last idle status and start time
+    c.execute('''
+        SELECT idle_status, idle_start_time FROM vehicle_idle_status 
+        WHERE vehicle_id = ?
+    ''', (vehicle_id,))
+    
+    result = c.fetchone()
+    
+    if result:
+        idle_status, idle_start_time = result
+        if idle_status == 'idle' and idle_start_time:
+            # Calculate idle duration
+            idle_start = datetime.datetime.fromisoformat(idle_start_time.replace('Z', '+00:00'))
+            current_time = datetime.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            idle_duration = current_time - idle_start
+            
+            if idle_duration.total_seconds() > (EXCESSIVE_IDLE_MINUTES * 60):
+                # Excessive idling detected
+                idle_minutes = int(idle_duration.total_seconds() / 60)
+                log_alarm(vehicle_id, 'excessive_idling', 
+                         f'Vehicle idle for {idle_minutes} minutes (exceeds {EXCESSIVE_IDLE_MINUTES} minute limit)')
+                print(f"[DEBUG] EXCESSIVE IDLE: Vehicle {vehicle_id} idle for {idle_minutes} minutes")
+        elif idle_status == 'moving':
+            # Just started idling, record start time
+            update_vehicle_idle_status(vehicle_id, 'idle', timestamp)
+    else:
+        # No record yet, start tracking
+        update_vehicle_idle_status(vehicle_id, 'idle', timestamp)
+    
+    conn.close()
+
+def update_vehicle_idle_status(vehicle_id, status, timestamp):
+    """Update vehicle idle tracking status"""
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('''
+        INSERT OR REPLACE INTO vehicle_idle_status (vehicle_id, idle_status, idle_start_time, last_update)
+        VALUES (?, ?, ?, ?)
+    ''', (vehicle_id, status, timestamp if status == 'idle' else None, timestamp))
+    
+    conn.commit()
+    conn.close()
+
+def check_speed_limit_violation(vehicle_id, current_speed, timestamp):
+    """Check if current speed exceeds the speed limit and create alarm if needed"""
+    print(f"[DEBUG] Checking speed limit for vehicle {vehicle_id}: current speed = {current_speed} km/h")
+    
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    # Get current speed limit for this vehicle
+    c.execute('''
+        SELECT speed_limit_kmh FROM speed_limits 
+        WHERE vehicle_id = ? AND is_active = 1 
+        ORDER BY set_at DESC LIMIT 1
+    ''', (vehicle_id,))
+    
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        speed_limit = result[0]
+        print(f"[DEBUG] Found speed limit: {speed_limit} km/h")
+        
+        if current_speed > speed_limit:
+            # Speed limit violation detected - log alarm
+            print(f"[DEBUG] SPEED VIOLATION! {current_speed} > {speed_limit}")
+            log_alarm(vehicle_id, 'speed_violation', 
+                     f'Speed {current_speed} km/h exceeds limit {speed_limit} km/h')
+        else:
+            print(f"[DEBUG] No violation: {current_speed} <= {speed_limit}")
+    else:
+        print(f"[DEBUG] No speed limit found for vehicle {vehicle_id}")
+
+def log_alarm(vehicle_id, alarm_type, message):
+    """Enhanced alarm logging with severity levels and classification"""
+    
+    # Alarm severity levels and classifications
+    ALARM_TYPES = {
+        'speed_violation': {'severity': 'warning', 'category': 'safety'},
+        'excessive_idling': {'severity': 'info', 'category': 'efficiency'},
+        'unauthorized_movement': {'severity': 'critical', 'category': 'security'},
+        'geofence_violation': {'severity': 'warning', 'category': 'compliance'},
+        'maintenance_due': {'severity': 'info', 'category': 'maintenance'},
+        'emergency': {'severity': 'critical', 'category': 'emergency'}
+    }
+    
+    # Determine severity and category
+    alarm_info = ALARM_TYPES.get(alarm_type, {'severity': 'info', 'category': 'general'})
+    severity = alarm_info['severity']
+    category = alarm_info['category']
+    
+    print(f"[{severity.upper()} ALARM] Vehicle {vehicle_id}: {message}")
+    print(f"[DEBUG] Alarm logged successfully - Type: {alarm_type}, Severity: {severity}")
+    
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    
+    c.execute('''
+        INSERT INTO alarm_logs (vehicle_id, alarm_type, message, timestamp, severity, category)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (vehicle_id, alarm_type, message, datetime.datetime.now().isoformat(), severity, category))
+    
+    conn.commit()
+    conn.close()
 
 def update_positioning_data(vehicle_id, latitude, longitude, heading=None, altitude=None):
     """Update positioning data for a vehicle"""

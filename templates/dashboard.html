@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GPS Fleet Management Dashboard</title>
+    <title>CBE GPS Fleet Management Dashboard</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -330,7 +330,7 @@
 </head>
 <body>
     <div class="header">
-        <h1><i class="fas fa-map-marked-alt"></i> GPS Fleet Management Dashboard</h1>
+        <h1><i class="fas fa-map-marked-alt"></i> CBE GPS Fleet Management Dashboard</h1>
     </div>
     
     <button class="toggle-btn" onclick="toggleSidebar()">
@@ -1502,7 +1502,7 @@ async function getCurrentSpeedLimit() {
         const data = await response.json();
         
         if (response.ok) {
-            displayCurrentSpeedLimit(data.speed_limit);
+            displayCurrentSpeedLimit(data);
         } else {
             showError(data.error || 'Failed to get speed limit');
         }
@@ -1515,21 +1515,25 @@ function displayCurrentSpeedLimit(speedLimitData) {
     const container = document.getElementById('currentSpeedLimitContainer');
     const content = document.getElementById('currentSpeedLimit');
     
-    if (!speedLimitData) {
+    if (!speedLimitData || speedLimitData.speed_limit === null || speedLimitData.speed_limit === undefined) {
         content.innerHTML = '<p>No speed limit set for this vehicle.</p>';
     } else {
+        const speedLimit = speedLimitData.speed_limit || 'N/A';
+        const setBy = speedLimitData.set_by || 'N/A';
+        const setAt = speedLimitData.set_at ? new Date(speedLimitData.set_at).toLocaleString() : 'N/A';
+        
         content.innerHTML = `
             <div class="report-grid">
                 <div class="stat-card">
-                    <div class="stat-value">${speedLimitData.speed_limit}</div>
+                    <div class="stat-value">${speedLimit}</div>
                     <div class="stat-label">Speed Limit</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value">${speedLimitData.set_by}</div>
+                    <div class="stat-value">${setBy}</div>
                     <div class="stat-label">Set By</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value">${new Date(speedLimitData.set_at).toLocaleString()}</div>
+                    <div class="stat-value">${setAt}</div>
                     <div class="stat-label">Set At</div>
                 </div>
             </div>
@@ -1644,7 +1648,7 @@ function displayAlarmLogs(alarms) {
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>IMEI</th>
+                        <th>Vehicle Plate</th>
                         <th>Alarm Type</th>
                         <th>Message</th>
                         <th>Timestamp</th>
@@ -1655,7 +1659,7 @@ function displayAlarmLogs(alarms) {
                 <tbody>
                     ${alarms.map(alarm => `
                         <tr>
-                            <td>${alarm.imei}</td>
+                            <td>${alarm.license_plate || 'N/A'}</td>
                             <td><span class="badge bg-warning">${alarm.alarm_type}</span></td>
                             <td>${alarm.message}</td>
                             <td>${new Date(alarm.timestamp).toLocaleString()}</td>
@@ -1666,7 +1670,7 @@ function displayAlarmLogs(alarms) {
                             </td>
                             <td>
                                 ${!alarm.acknowledged ? 
-                                    `<button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="acknowledgeAlarm('${alarm.imei}', ${alarm.id})">
+                                    `<button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="acknowledgeAlarm('${alarm.vehicle_id}', ${alarm.id})">
                                         <i class="fas fa-check"></i> Acknowledge
                                     </button>` : 
                                     '-'}
@@ -1682,7 +1686,7 @@ function displayAlarmLogs(alarms) {
     container.style.display = 'block';
 }
 
-async function acknowledgeAlarm(imei, alarmId) {
+async function acknowledgeAlarm(vehicleId, alarmId) {
     showLoading('Acknowledging alarm...');
     
     try {
@@ -1691,15 +1695,14 @@ async function acknowledgeAlarm(imei, alarmId) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ imei, alarm_id: alarmId, acknowledged_by: 'dashboard_user' })
+            body: JSON.stringify({ vehicle_id: vehicleId, alarm_id: alarmId, acknowledged_by: 'dashboard_user' })
         });
         
         const data = await response.json();
         
         if (response.ok) {
             showSuccess('Alarm acknowledged successfully!');
-            // Reload alarm logs
-            loadAlarmLogs();
+            loadAlarmLogs(); // Refresh alarm logs
         } else {
             showError(data.error || 'Failed to acknowledge alarm');
         }
@@ -1708,81 +1711,7 @@ async function acknowledgeAlarm(imei, alarmId) {
     }
 }
         
-        function displayAlarmLogs(alarms) {
-            const container = document.getElementById('alarmLogsContainer');
-            const content = document.getElementById('alarmLogs');
-            
-            if (!alarms || alarms.length === 0) {
-                content.innerHTML = '<p>No alarm logs available.</p>';
-            } else {
-                const html = `
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>IMEI</th>
-                                <th>Alarm Type</th>
-                                <th>Message</th>
-                                <th>Timestamp</th>
-                                <th>Acknowledged</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${alarms.map(alarm => `
-                                <tr>
-                                    <td>${alarm.imei}</td>
-                                    <td><span class="badge bg-warning">${alarm.alarm_type}</span></td>
-                                    <td>${alarm.message}</td>
-                                    <td>${new Date(alarm.timestamp).toLocaleString()}</td>
-                                    <td>
-                                        ${alarm.acknowledged ? 
-                                            `<span class="badge bg-success">Yes (${alarm.acknowledged_by})</span>` : 
-                                            '<span class="badge bg-danger">No</span>'}
-                                    </td>
-                                    <td>
-                                        ${!alarm.acknowledged ? 
-                                            `<button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="acknowledgeAlarm('${alarm.imei}', ${alarm.id})">
-                                                <i class="fas fa-check"></i> Acknowledge
-                                            </button>` : 
-                                            '-'}
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-                content.innerHTML = html;
-            }
-            
-            container.style.display = 'block';
-        }
-        
-        async function acknowledgeAlarm(imei, alarmId) {
-            showLoading('Acknowledging alarm...');
-            
-            try {
-                const response = await fetch('/api/alarms/acknowledge', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ imei, alarm_id: alarmId, acknowledged_by: 'dashboard_user' })
-                });
                 
-                const data = await response.json();
-                
-                if (response.ok) {
-                    showSuccess('Alarm acknowledged successfully!');
-                    // Reload alarm logs
-                    loadAlarmLogs();
-                } else {
-                    showError(data.error || 'Failed to acknowledge alarm');
-                }
-            } catch (error) {
-                showError('Error: ' + error.message);
-            }
-        }
-        
         // Trip Request Functions
         async function loadTripRequests() {
             const status = document.getElementById('requestStatus').value;
