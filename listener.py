@@ -344,11 +344,15 @@ def save_point(vehicle_id, ts_iso, lat, lon, speed):
     update_positioning_data(vehicle_id, lat, lon)
 
 def check_idle_time_violation(vehicle_id, current_speed, timestamp):
-    """Check if vehicle has been idle for too long"""
+    """Enhanced idle time checking with fuel waste and productivity tracking"""
     # Define idle threshold (speed <= 5 km/h considered idle)
     IDLE_SPEED_THRESHOLD = 5.0
     # Define excessive idle time in minutes
     EXCESSIVE_IDLE_MINUTES = 15
+    # Define fuel waste threshold (10 minutes of continuous idling)
+    FUEL_WASTE_MINUTES = 10
+    # Define productivity threshold (20 minutes of idling during work hours)
+    PRODUCTIVITY_MINUTES = 20
     
     if current_speed > IDLE_SPEED_THRESHOLD:
         # Vehicle is moving, reset idle tracking
@@ -374,13 +378,29 @@ def check_idle_time_violation(vehicle_id, current_speed, timestamp):
             idle_start = datetime.datetime.fromisoformat(idle_start_time.replace('Z', '+00:00'))
             current_time = datetime.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
             idle_duration = current_time - idle_start
+            idle_minutes = int(idle_duration.total_seconds() / 60)
             
-            if idle_duration.total_seconds() > (EXCESSIVE_IDLE_MINUTES * 60):
-                # Excessive idling detected
-                idle_minutes = int(idle_duration.total_seconds() / 60)
+            # Check for excessive idling (15+ minutes)
+            if idle_minutes > EXCESSIVE_IDLE_MINUTES:
                 log_alarm(vehicle_id, 'excessive_idling', 
                          f'Vehicle idle for {idle_minutes} minutes (exceeds {EXCESSIVE_IDLE_MINUTES} minute limit)')
                 print(f"[DEBUG] EXCESSIVE IDLE: Vehicle {vehicle_id} idle for {idle_minutes} minutes")
+            
+            # Check for fuel waste (10+ minutes)
+            elif idle_minutes > FUEL_WASTE_MINUTES:
+                log_alarm(vehicle_id, 'fuel_waste_prevention', 
+                         f'Fuel waste alert: Vehicle idle for {idle_minutes} minutes (wasting fuel)')
+                print(f"[DEBUG] FUEL WASTE: Vehicle {vehicle_id} idle for {idle_minutes} minutes")
+            
+            # Check for productivity issues (20+ minutes during work hours)
+            elif idle_minutes > PRODUCTIVITY_MINUTES:
+                # Check if during work hours (8 AM - 6 PM)
+                work_hour = current_time.hour
+                if 8 <= work_hour <= 18:
+                    log_alarm(vehicle_id, 'productivity_tracking', 
+                             f'Productivity alert: Vehicle idle for {idle_minutes} minutes during work hours')
+                    print(f"[DEBUG] PRODUCTIVITY: Vehicle {vehicle_id} idle for {idle_minutes} minutes during work hours")
+                    
         elif idle_status == 'moving':
             # Just started idling, record start time
             update_vehicle_idle_status(vehicle_id, 'idle', timestamp)
@@ -441,6 +461,8 @@ def log_alarm(vehicle_id, alarm_type, message):
     ALARM_TYPES = {
         'speed_violation': {'severity': 'warning', 'category': 'safety'},
         'excessive_idling': {'severity': 'info', 'category': 'efficiency'},
+        'fuel_waste_prevention': {'severity': 'warning', 'category': 'efficiency'},
+        'productivity_tracking': {'severity': 'info', 'category': 'efficiency'},
         'unauthorized_movement': {'severity': 'critical', 'category': 'security'},
         'geofence_violation': {'severity': 'warning', 'category': 'compliance'},
         'maintenance_due': {'severity': 'info', 'category': 'maintenance'},

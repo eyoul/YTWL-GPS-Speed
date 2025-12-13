@@ -21,7 +21,6 @@ ALARM_TYPES = {
 
 def log_alarm_with_severity(vehicle_id, alarm_type, message, severity=None):
     """Enhanced alarm logging with severity levels and classification"""
-    
     # Determine severity if not provided
     if not severity and alarm_type in ALARM_TYPES:
         severity = ALARM_TYPES[alarm_type]['severity']

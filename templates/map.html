@@ -4,7 +4,7 @@
     <title>GPS Tracker</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
     <style>
         #map { height: 100vh; width: 100%; }
     </style>
@@ -12,38 +12,57 @@
 <body>
     <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
-        var map = L.map('map').setView([9.03, 38.74], 13); // Default center
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19
-        }).addTo(map);
-
+        var map = null;
         var markers = {};
 
-    async function updateMarkers() {
-        let res = await fetch('/api/latest');
-        let data = await res.json();
-
-        if (data.length > 0) {
-            let first = data[0];
-            map.setView([first.lat, first.lon], 13);
+        // Global initMap function for Google Maps API callback
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 9.03, lng: 38.74 },
+                zoom: 13,
+                mapTypeId: 'roadmap'
+            });
+            
+            // Start updating markers
+            updateMarkers();
         }
 
-        data.forEach(p => {
-            let key = p.imei;
-            if (markers[key]) {
-                markers[key].setLatLng([p.lat, p.lon]);
-            } else {
-                markers[key] = L.marker([p.lat, p.lon]).addTo(map)
-                    .bindPopup(`IMEI: ${p.imei}<br>Speed: ${p.speed} km/h`);
+        async function updateMarkers() {
+            if (!map) return;
+            
+            let res = await fetch('/api/latest');
+            let data = await res.json();
+
+            if (data.length > 0) {
+                let first = data[0];
+                map.setCenter({ lat: first.lat, lng: first.lon });
             }
-        });
-    }
+
+            data.forEach(p => {
+                let key = p.imei;
+                if (markers[key]) {
+                    markers[key].setPosition({ lat: p.lat, lng: p.lon });
+                } else {
+                    markers[key] = new google.maps.Marker({
+                        position: { lat: p.lat, lng: p.lon },
+                        map: map,
+                        title: `IMEI: ${p.imei}`
+                    });
+                    
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `IMEI: ${p.imei}<br>Speed: ${p.speed} km/h`
+                    });
+                    
+                    markers[key].addListener('click', () => {
+                        infoWindow.open(map, markers[key]);
+                    });
+                }
+            });
+        }
 
         // Update every 5 seconds
         setInterval(updateMarkers, 5000);
-        updateMarkers();
     </script>
 </body>
 </html>

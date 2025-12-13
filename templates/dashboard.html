@@ -4,8 +4,8 @@
     <title>CBE GPS Fleet Management Dashboard</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+   <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_ACTUAL_API_KEY&callback=initMap"></script>
     <style>
         * {
             margin: 0;
@@ -484,8 +484,7 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script>
+        <script>
         let map = null;
         let markers = {};
         
@@ -2575,10 +2574,17 @@ async function acknowledgeAlarm(vehicleId, alarmId) {
             const mapElement = document.getElementById('map');
             if (!mapElement) return;
             
-            map = L.map(mapElement).setView([9.03, 38.74], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19
-            }).addTo(map);
+            // Initialize Google Maps
+            map = new google.maps.Map(mapElement, {
+                center: { lat: 9.03, lng: 38.74 },
+                zoom: 13,
+                mapTypeId: 'roadmap'
+            });
+        }
+        
+        // Global initMap function for Google Maps API callback
+        function initMap() {
+            initializeMap();
         }
         
         async function updateMarkers() {
@@ -2590,17 +2596,28 @@ async function acknowledgeAlarm(vehicleId, alarmId) {
                 
                 if (data.length > 0) {
                     const first = data[0];
-                    map.setView([first.lat, first.lon], 13);
+                    map.setCenter({ lat: first.lat, lng: first.lon });
                 }
                 
                 data.forEach(p => {
                     const key = p.imei;
                     const plateDisplay = p.license_plate || 'Unknown Vehicle';
                     if (markers[key]) {
-                        markers[key].setLatLng([p.lat, p.lon]);
+                        markers[key].setPosition({ lat: p.lat, lng: p.lon });
                     } else {
-                        markers[key] = L.marker([p.lat, p.lon]).addTo(map)
-                            .bindPopup(`Vehicle: ${plateDisplay}<br>Speed: ${p.speed} km/h`);
+                        markers[key] = new google.maps.Marker({
+                            position: { lat: p.lat, lng: p.lon },
+                            map: map,
+                            title: `Vehicle: ${plateDisplay}`
+                        });
+                        
+                        const infoWindow = new google.maps.InfoWindow({
+                            content: `Vehicle: ${plateDisplay}<br>Speed: ${p.speed} km/h`
+                        });
+                        
+                        markers[key].addListener('click', () => {
+                            infoWindow.open(map, markers[key]);
+                        });
                     }
                 });
             } catch (error) {
