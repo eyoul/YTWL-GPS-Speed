@@ -303,7 +303,7 @@ def simulate_engine_response(command_id):
     
     # Simulate response
     response = 'Engine command sent successfully'
-    status = 'completed'
+    status = 'executed'
     executed_at = datetime.datetime.utcnow().isoformat()
     
     c.execute('''
@@ -1071,6 +1071,51 @@ def engine_status():
     try:
         status = get_engine_status(vehicle['id'])
         return jsonify(status)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Speed Limit APIs
+@app.route('/api/speed_limit', methods=['POST'])
+def set_speed_limit_api():
+    data = request.get_json()
+    imei = data.get('imei')
+    speed_limit_kmh = data.get('speed_limit')
+    set_by = data.get('user', 'system')
+    
+    if not imei:
+        return jsonify({'error': 'IMEI parameter is required'}), 400
+    if not speed_limit_kmh:
+        return jsonify({'error': 'Speed limit is required'}), 400
+    
+    # Get vehicle_id from IMEI for normalization
+    vehicle = get_vehicle_by_imei(imei)
+    if not vehicle:
+        return jsonify({'error': 'Vehicle not found for IMEI'}), 404
+    
+    try:
+        set_speed_limit(vehicle['id'], speed_limit_kmh, set_by)
+        return jsonify({
+            'success': True,
+            'message': 'Speed limit set successfully'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/speed_limit', methods=['GET'])
+def get_speed_limit_api():
+    imei = request.args.get('imei')
+    
+    if not imei:
+        return jsonify({'error': 'IMEI parameter is required'}), 400
+    
+    # Get vehicle_id from IMEI for normalization
+    vehicle = get_vehicle_by_imei(imei)
+    if not vehicle:
+        return jsonify({'error': 'Vehicle not found for IMEI'}), 404
+    
+    try:
+        speed_limit_data = get_speed_limit(vehicle['id'])
+        return jsonify(speed_limit_data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
