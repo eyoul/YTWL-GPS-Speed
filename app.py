@@ -1,6 +1,7 @@
 from flask import Flask, render_template, jsonify, request
 import threading
 from listener import start_server
+from enhanced_alarm import add_alarm_routes, enhanced_log_alarm
 import sqlite3
 import datetime
 import math
@@ -1328,10 +1329,13 @@ def get_vehicle_statistics_api():
     except Exception as e:
         return jsonify({'error': 'Failed to fetch vehicle statistics: ' + str(e)}), 500
 
+# Initialize alarm system
+add_alarm_routes(app)
+
 if __name__ == '__main__':
     # Start TCP listener in a background thread
     t = threading.Thread(target=start_server, daemon=True)
     t.start()
 
     # Start Flask app
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)

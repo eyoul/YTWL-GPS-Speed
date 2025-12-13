@@ -4,9 +4,22 @@
     <title>GPS Tracker</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            crossorigin=""></script>
     <style>
-        #map { height: 100vh; width: 100%; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        #map { 
+            height: 100vh; 
+            width: 100%; 
+        }
     </style>
 </head>
 <body>
@@ -16,53 +29,75 @@
         var map = null;
         var markers = {};
 
-        // Global initMap function for Google Maps API callback
-        function initMap() {
-            map = new google.maps.Map(document.getElementById('map'), {
-                center: { lat: 9.03, lng: 38.74 },
-                zoom: 13,
-                mapTypeId: 'roadmap'
-            });
+        // Initialize map when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+            // Update markers every 5 seconds
+            setInterval(updateMarkers, 5000);
+        });
+
+        function initializeMap() {
+            if (map) return;
             
-            // Start updating markers
-            updateMarkers();
+            try {
+                // Initialize the map
+                map = L.map('map').setView([9.03, 38.74], 13); // Default to Addis Ababa with zoom level 13
+                
+                // Add OpenStreetMap tile layer
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 19
+                }).addTo(map);
+                
+                console.log('Map initialized successfully');
+                
+                // Start updating markers
+                updateMarkers();
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                document.getElementById('map').innerHTML = '<div style="padding: 20px; color: red;">Error loading map: ' + error.message + '</div>';
+            }
         }
 
         async function updateMarkers() {
             if (!map) return;
             
-            let res = await fetch('/api/latest');
-            let data = await res.json();
+            try {
+                let res = await fetch('/api/latest');
+                if (!res.ok) {
+                    console.error('API response not ok:', res.status);
+                    return;
+                }
+                let data = await res.json();
+                
+                console.log('Received data:', data);
 
-            if (data.length > 0) {
-                let first = data[0];
-                map.setCenter({ lat: first.lat, lng: first.lon });
-            }
+                if (data && data.length > 0) {
+                    let first = data[0];
+                    map.setView([first.lat, first.lon], 13);
+                }
 
-            data.forEach(p => {
-                let key = p.imei;
-                if (markers[key]) {
-                    markers[key].setPosition({ lat: p.lat, lng: p.lon });
-                } else {
-                    markers[key] = new google.maps.Marker({
-                        position: { lat: p.lat, lng: p.lon },
-                        map: map,
-                        title: `IMEI: ${p.imei}`
-                    });
-                    
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: `IMEI: ${p.imei}<br>Speed: ${p.speed} km/h`
-                    });
-                    
-                    markers[key].addListener('click', () => {
-                        infoWindow.open(map, markers[key]);
+                if (data && Array.isArray(data)) {
+                    data.forEach(p => {
+                        let key = p.imei;
+                        if (markers[key]) {
+                            // Update existing marker position
+                            markers[key].setLatLng([p.lat, p.lon]);
+                        } else {
+                            // Create new marker
+                            markers[key] = L.marker([p.lat, p.lon], {
+                                title: `IMEI: ${p.imei}`
+                            }).addTo(map);
+                            
+                            // Add popup
+                            markers[key].bindPopup(`IMEI: ${p.imei}<br>Speed: ${p.speed} km/h`);
+                        }
                     });
                 }
-            });
+            } catch (error) {
+                console.error('Error updating markers:', error);
+            }
         }
-
-        // Update every 5 seconds
-        setInterval(updateMarkers, 5000);
     </script>
 </body>
 </html>

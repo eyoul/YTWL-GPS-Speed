@@ -5,8 +5,21 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-   <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_ACTUAL_API_KEY&callback=initMap"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            crossorigin=""></script>
     <style>
+        /* Add map container style */
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -304,6 +317,68 @@
             color: white;
         }
         
+        /* Alarm styles */
+        .alarm-critical {
+            border-left: 4px solid #dc3545;
+            background: #fff5f5;
+        }
+        
+        .alarm-warning {
+            border-left: 4px solid #ffc107;
+            background: #fffbf0;
+        }
+        
+        .alarm-info {
+            border-left: 4px solid #17a2b8;
+            background: #f0f8ff;
+        }
+        
+        .alarm-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .alarm-severity-critical {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .alarm-severity-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .alarm-severity-info {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .alarm-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .alarm-btn {
+            padding: 0.25rem 0.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        
+        .alarm-ack-btn {
+            background: #28a745;
+            color: white;
+        }
+        
+        .alarm-ack-btn:hover {
+            background: #218838;
+        }
+        
         @media (max-width: 768px) {
             .sidebar {
                 position: fixed;
@@ -422,6 +497,16 @@
                 </button>
                 <button class="btn btn-secondary" onclick="window.open('/map', '_blank')">
                     <i class="fas fa-external-link-alt"></i> Open Map in New Tab
+                </button>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3><i class="fas fa-bell"></i> Alarms</h3>
+                <button class="btn" onclick="showAlarms()">
+                    <i class="fas fa-exclamation-triangle"></i> View Alarms
+                </button>
+                <button class="btn btn-secondary" onclick="refreshAlarms()">
+                    <i class="fas fa-sync-alt"></i> Refresh
                 </button>
             </div>
         </div>
@@ -2560,7 +2645,11 @@ async function acknowledgeAlarm(vehicleId, alarmId) {
             setTimeout(() => {
                 initializeMap();
                 updateMarkers();
-                setInterval(updateMarkers, 5000);
+                // Clear any existing interval and set new one for live updates
+                if (window.markerUpdateInterval) {
+                    clearInterval(window.markerUpdateInterval);
+                }
+                window.markerUpdateInterval = setInterval(updateMarkers, 5000);
             }, 100);
         }
         
@@ -2574,52 +2663,84 @@ async function acknowledgeAlarm(vehicleId, alarmId) {
             const mapElement = document.getElementById('map');
             if (!mapElement) return;
             
-            // Initialize Google Maps
-            map = new google.maps.Map(mapElement, {
-                center: { lat: 9.03, lng: 38.74 },
-                zoom: 13,
-                mapTypeId: 'roadmap'
-            });
+            // Initialize the map
+            map = L.map('map').setView([9.0331, 38.7500], 12); // Default to Addis Ababa with zoom level 12
+            
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Load initial markers
+            updateMarkers();
         }
         
-        // Global initMap function for Google Maps API callback
-        function initMap() {
-            initializeMap();
-        }
+        // Map will be initialized only when Live Map tab is clicked
         
         async function updateMarkers() {
             if (!map) return;
             
             try {
-                const response = await fetch('/api/latest');
-                const data = await response.json();
+                // Clear existing markers
+                Object.values(markers).forEach(marker => map.removeLayer(marker));
+                markers = {};
                 
-                if (data.length > 0) {
-                    const first = data[0];
-                    map.setCenter({ lat: first.lat, lng: first.lon });
+                // Fetch real vehicle data from API
+                let res = await fetch('/api/latest');
+                if (!res.ok) {
+                    console.error('API response not ok:', res.status);
+                    return;
                 }
+                let data = await res.json();
                 
-                data.forEach(p => {
-                    const key = p.imei;
-                    const plateDisplay = p.license_plate || 'Unknown Vehicle';
-                    if (markers[key]) {
-                        markers[key].setPosition({ lat: p.lat, lng: p.lon });
-                    } else {
-                        markers[key] = new google.maps.Marker({
-                            position: { lat: p.lat, lng: p.lon },
-                            map: map,
-                            title: `Vehicle: ${plateDisplay}`
-                        });
-                        
-                        const infoWindow = new google.maps.InfoWindow({
-                            content: `Vehicle: ${plateDisplay}<br>Speed: ${p.speed} km/h`
-                        });
-                        
-                        markers[key].addListener('click', () => {
-                            infoWindow.open(map, markers[key]);
-                        });
-                    }
+                console.log('Received data:', data);
+                
+                // Create custom icons
+                const movingIcon = L.divIcon({
+                    className: 'vehicle-marker moving',
+                    html: '<i class="fas fa-car" style="color: #e74c3c; font-size: 24px;"></i>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
                 });
+                
+                const idleIcon = L.divIcon({
+                    className: 'vehicle-marker idle',
+                    html: '<i class="fas fa-car" style="color: #3498db; font-size: 24px;"></i>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                
+                if (data && Array.isArray(data) && data.length > 0) {
+                    // Center map on first vehicle
+                    let first = data[0];
+                    map.setView([first.lat, first.lon], 13);
+                    
+                    data.forEach(p => {
+                        let key = p.imei;
+                        const plateDisplay = p.license_plate || `Vehicle ${key}`;
+                        const status = p.speed > 0 ? 'moving' : 'idle';
+                        
+                        const marker = L.marker(
+                            [p.lat, p.lon],
+                            { 
+                                title: plateDisplay,
+                                icon: status === 'moving' ? movingIcon : idleIcon
+                            }
+                        ).addTo(map);
+                        
+                        // Add popup
+                        marker.bindPopup(`<div><strong>${plateDisplay}</strong><br>IMEI: ${key}<br>Speed: ${p.speed} km/h<br>Status: ${status}</div>`);
+                        
+                        markers[key] = marker;
+                    });
+                    
+                    // Fit map to bounds of all markers
+                    if (Object.keys(markers).length > 0) {
+                        const group = new L.featureGroup(Object.values(markers));
+                        map.fitBounds(group.getBounds().pad(0.1));
+                    }
+                }
             } catch (error) {
                 console.error('Error updating markers:', error);
             }
@@ -2635,6 +2756,124 @@ async function acknowledgeAlarm(vehicleId, alarmId) {
         
         function updateTitle(title) {
             document.getElementById('reportTitle').textContent = title;
+        }
+        
+        // Alarm management functions
+        function showAlarms() {
+            updateTitle('System Alarms');
+            showLoading('Loading alarms...');
+            
+            fetch('/api/alarms')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.alarms && data.alarms.length > 0) {
+                        displayAlarms(data.alarms);
+                    } else {
+                        document.getElementById('reportsContent').innerHTML = `
+                            <div class="report-card">
+                                <h4>No Alarms</h4>
+                                <p>Great! No active alarms in the system.</p>
+                            </div>
+                        `;
+                    }
+                    document.getElementById('reportStatus').innerHTML = '';
+                })
+                .catch(error => {
+                    showError('Failed to load alarms: ' + error.message);
+                });
+        }
+        
+        function displayAlarms(alarms) {
+            let html = `
+                <div class="report-card">
+                    <h4>Active Alarms (${alarms.length})</h4>
+                    <div class="data-table-container">
+            `;
+            
+            if (alarms.length === 0) {
+                html += '<p>No alarms found.</p>';
+            } else {
+                html += '<table class="data-table">';
+                html += '<thead><tr>';
+                html += '<th>Time</th>';
+                html += '<th>Vehicle</th>';
+                html += '<th>Type</th>';
+                html += '<th>Severity</th>';
+                html += '<th>Message</th>';
+                html += '<th>Actions</th>';
+                html += '</tr></thead><tbody>';
+                
+                alarms.forEach(alarm => {
+                    const severityClass = `alarm-severity-${alarm.severity}`;
+                    const rowClass = `alarm-${alarm.severity}`;
+                    const time = new Date(alarm.timestamp).toLocaleString();
+                    
+                    html += `<tr class="${rowClass}">`;
+                    html += `<td>${time}</td>`;
+                    html += `<td>${alarm.license_plate || 'Unknown'}</td>`;
+                    html += `<td><span class="badge bg-info">${alarm.alarm_type}</span></td>`;
+                    html += `<td><span class="alarm-badge ${severityClass}">${alarm.severity}</span></td>`;
+                    html += `<td>${alarm.message}</td>`;
+                    html += `<td>`;
+                    
+                    if (!alarm.acknowledged) {
+                        html += `<button class="alarm-btn alarm-ack-btn" onclick="acknowledgeAlarm(${alarm.id}, '${alarm.license_plate}')">Acknowledge</button>`;
+                    } else {
+                        html += `<small>Acknowledged by ${alarm.acknowledged_by}</small>`;
+                    }
+                    
+                    html += `</td>`;
+                    html += `</tr>`;
+                });
+                
+                html += '</tbody></table>';
+            }
+            
+            html += `
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('reportsContent').innerHTML = html;
+        }
+        
+        function acknowledgeAlarm(alarmId, vehiclePlate) {
+            if (!confirm(`Acknowledge alarm for ${vehiclePlate}?`)) {
+                return;
+            }
+            
+            fetch(`/api/alarms/${alarmId}/acknowledge`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    acknowledged_by: 'Dashboard User'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccess('Alarm acknowledged successfully');
+                    refreshAlarms();
+                } else {
+                    showError('Failed to acknowledge alarm');
+                }
+            })
+            .catch(error => {
+                showError('Error acknowledging alarm: ' + error.message);
+            });
+        }
+        
+        function refreshAlarms() {
+            showAlarms();
+        }
+        
+        function showSuccess(message) {
+            document.getElementById('reportStatus').innerHTML = `<div class="success"><i class="fas fa-check"></i> ${message}</div>`;
+            setTimeout(() => {
+                document.getElementById('reportStatus').innerHTML = '';
+            }, 3000);
         }
     </script>
 </body>
