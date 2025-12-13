@@ -1119,6 +1119,29 @@ def get_speed_limit_api():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Alarms API
+@app.route('/api/alarms', methods=['GET'])
+def get_alarms():
+    imei = request.args.get('imei')
+    limit = request.args.get('limit', 100)
+    
+    if not imei:
+        return jsonify({'error': 'IMEI parameter is required'}), 400
+    
+    # Get vehicle_id from IMEI for normalization
+    vehicle = get_vehicle_by_imei(imei)
+    if not vehicle:
+        return jsonify({'error': 'Vehicle not found for IMEI'}), 404
+    
+    try:
+        limit = int(limit)
+        alarms = get_alarm_logs(vehicle['id'], limit)
+        return jsonify({'alarms': alarms})
+    except ValueError:
+        return jsonify({'error': 'Invalid limit parameter'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # ... (rest of the code remains the same)
 
 @app.route('/api/positioning', methods=['GET'])
