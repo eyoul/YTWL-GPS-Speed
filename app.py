@@ -10,12 +10,18 @@ app = Flask(__name__)
 DB = 'gps.db'
 
 def save_gps(imei, timestamp, lat, lon, speed):
+    # Get vehicle_id from IMEI
+    vehicle_id = get_vehicle_id_from_imei(imei)
+    if not vehicle_id:
+        print(f"Warning: Vehicle not found for IMEI {imei}")
+        return
+    
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     c.execute('''
-        INSERT INTO gps_data (imei, timestamp, latitude, longitude, speed)
+        INSERT INTO gps_data (vehicle_id, timestamp, latitude, longitude, speed)
         VALUES (?, ?, ?, ?, ?)
-    ''', (imei, timestamp, lat, lon, speed))
+    ''', (vehicle_id, timestamp, lat, lon, speed))
     conn.commit()
     conn.close()
     
@@ -816,10 +822,6 @@ def get_vehicle_statistics():
 @app.route('/')
 def index():
     return render_template('dashboard.html')
-
-@app.route('/map')
-def map_view():
-    return render_template('map.html')
 
 # API endpoint for latest GPS points
 @app.route('/api/latest')

@@ -482,9 +482,6 @@
             
             <div class="sidebar-section">
                 <h3><i class="fas fa-bell"></i> System Management</h3>
-                <button class="btn" onclick="showAlarmLogs()">
-                    <i class="fas fa-exclamation-triangle"></i> Alarm Logs
-                </button>
                 <button class="btn" onclick="showTripRequests()">
                     <i class="fas fa-clipboard-list"></i> Trip Requests
                 </button>
@@ -495,15 +492,16 @@
                 <button class="btn" onclick="showLiveMap()">
                     <i class="fas fa-satellite-dish"></i> Live Map
                 </button>
-                <button class="btn btn-secondary" onclick="window.open('/map', '_blank')">
-                    <i class="fas fa-external-link-alt"></i> Open Map in New Tab
-                </button>
-            </div>
+                            </div>
             
             <div class="sidebar-section">
                 <h3><i class="fas fa-bell"></i> Alarms</h3>
                 <button class="btn" onclick="showAlarms()">
                     <i class="fas fa-exclamation-triangle"></i> View Alarms
+                </button>
+
+                <button class="btn" onclick="showAlarmLogs()">
+                    <i class="fas fa-list-alt"></i> Alarm Logs
                 </button>
                 <button class="btn btn-secondary" onclick="refreshAlarms()">
                     <i class="fas fa-sync-alt"></i> Refresh
@@ -553,9 +551,9 @@
                     </ul>
                     <div style="margin-top: 1rem;">
                         <strong>Quick Links:</strong> 
-                        <a href="/map" target="_blank" style="color: #667eea; text-decoration: none; margin-left: 0.5rem;">
-                            <i class="fas fa-map"></i> Open Map View
-                        </a>
+                        <span style="color: #667eea; margin-left: 0.5rem;">
+                            <i class="fas fa-map"></i> Live Map Active
+                        </span>
                     </div>
                 </div>
                 
