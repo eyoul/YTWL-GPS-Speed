@@ -1335,9 +1335,6 @@ def get_vehicle_statistics_api():
 add_alarm_routes(app)
 
 if __name__ == '__main__':
-    # Start TCP listener in a background thread
     t = threading.Thread(target=start_server, daemon=True)
     t.start()
 
-    # Start Flask app
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
