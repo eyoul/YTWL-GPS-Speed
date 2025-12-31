@@ -181,8 +181,8 @@ cython_debug/
 .cursorindexingignore
 cbe-gps-tracker/fleet.db
 frontend/node_modules/
-fleet.db
-.db
+# fleet.db
+# .db
 .env
 example.env
-*.db
+# *.db
