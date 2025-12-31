@@ -72,3 +72,85 @@ Open http://localhost:5000
 - Better GT06 decoding coverage and ACKs
 - Pagination and map clustering
 - Export reports (CSV/Excel)
+
+STEP 1: FIX ARCHITECTURE (VERY IMPORTANT)
+
+Right now you are doing this:
+
+Gunicorn (web)
+
+TCP GPS listener
+
+SQLite writes
+➡️ ALL inside one process
+
+GPS Devices
+   |
+   | TCP :9000
+   v
+GPS Listener (systemd)
+   |
+   | Queue
+   v
+Redis (Buffer)
+   |
+   | Worker
+   v
+PostgreSQL
+   |
+   | API
+   v
+Flask + Gunicorn
+   |
+   | WebSocket
+   v
+Live Map (Leaflet)
+
+PHASES (WE DO IN ORDER)
+✅ Phase 1 — PostgreSQL Migration (MOST IMPORTANT)
+
+SQLite ❌
+PostgreSQL ✅
+
+✅ Phase 2 — Redis Queue (No Data Loss)
+
+Listener NEVER touches DB directly
+
+Redis buffers packets
+
+✅ Phase 3 — WebSocket Live Tracking
+
+Map updates instantly
+
+No polling every 5 seconds
+
+✅ Phase 4 — Device Commands
+
+Engine Cut
+
+Engine Resume
+
+Speed Limit Push
+
+✅ Phase 5 — Security & Scale
+
+Auth
+
+HTTPS
+
+Load testing
+
+
+GPS Device
+   ↓ TCP
+Listener
+   ↓
+Redis Queue
+   ↓
+Worker
+   ↓
+PostgreSQL
+   ↓
+WebSocket Broadcast
+   ↓
+Browser Map (Instant update)
